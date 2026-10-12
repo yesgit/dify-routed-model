@@ -25,11 +25,13 @@ from dify_plugin.entities.model.message import (
     PromptMessage,
     PromptMessageTool,
 )
+from dify_plugin.errors.model import CredentialsValidateFailedError, InvokeError
 from dify_plugin.interfaces.model.large_language_model import LargeLanguageModel
 
 from message_extract import extract_text
 from policy import ConfigError, Policy, UnknownContentRejected, load_policy_from_credentials
 from targets import UpstreamError, build_messages, build_payload, chat_completions, iter_sse
+from validation import ConnectivityError, validate_and_ping
 
 _BUNDLE_CACHE_LIMIT = 8
 
@@ -106,6 +108,29 @@ def _map_tool_calls(raw_list: list) -> list:
 
 
 class RoutedModelLargeLanguageModel(LargeLanguageModel):
+    # SDK（dify-plugin 0.10.2）的 AIModel 要求实现这两个抽象成员：保存自定义模型实例时
+    # core 触发的是 validate_credentials（而非 provider 的
+    # validate_provider_credentials），缺失会导致类无法实例化（HTTP 500）。
+
+    def validate_credentials(self, model: str, credentials: dict) -> None:
+        """保存/添加自定义模型实例时调用：解析配置并向每个已配置目标 ping 一次。
+
+        `model` 为逻辑模型名（实例名），不参与路由，也不写入任何请求。
+        """
+        try:
+            validate_and_ping(credentials or {})
+        except ConfigError as e:
+            raise CredentialsValidateFailedError(f"路由配置无效：{e}") from None
+        except ConnectivityError as e:
+            raise CredentialsValidateFailedError(str(e)) from None
+
+    @property
+    def _invoke_error_mapping(self) -> dict[type[InvokeError], list[type[Exception]]]:
+        # 空映射 = SDK 兜底把异常包装为 "[routed_model] Error: <原文>"，保留插件自己的
+        # 中文报错与"不做失败转移"提示；若在此登记 InvokeError，消息会被套上
+        # "None, " 前缀（基类无 description），故不登记任何类型。
+        return {}
+
     # 简单 LRU 式缓存：凭据字符串不变时复用解析结果，避免每 token 请求重解析 DSL
     _bundles: dict = {}
 
