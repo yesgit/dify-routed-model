@@ -143,10 +143,15 @@ def build_payload(
     return payload
 
 
-def chat_completions(target, api_key: str, payload: dict, *, timeout, stream: bool) -> requests.Response:
-    """向 target.base_url 发起一次 chat/completions 请求。非 200 / 连接异常统一抛 UpstreamError。"""
+def chat_completions(target, payload: dict, *, timeout, stream: bool) -> requests.Response:
+    """向 target.base_url 发起一次 chat/completions 请求。非 200 / 连接异常统一抛 UpstreamError。
+
+    target.api_key 为空时不发送 Authorization 头（本地/无鉴权上游）。
+    """
     url = target.base_url.rstrip("/") + "/chat/completions"
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    headers = {"Content-Type": "application/json"}
+    if target.api_key:
+        headers["Authorization"] = f"Bearer {target.api_key}"
     try:
         resp = requests.post(url, json=payload, headers=headers, stream=stream, timeout=timeout)
     except requests.RequestException as e:

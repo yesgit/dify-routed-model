@@ -16,16 +16,20 @@ help:
     zh_Hans: 配置说明
   tip:
     en_US: >-
-      After installing, add a custom model (e.g. routed-chat) and fill rules_json (targets and
-      keyword rules) and credentials_map (API keys per target). Real upstream model names stay
-      server-side; end users only see the logical model. Keyword routing is business
-      classification, not a security boundary. Saving this model validates every target with a
-      minimal chat request. See the plugin README for the JSON format.
+      Up to 4 upstream providers; each provider has name / base_url / API key and a
+      models list like "qwen-plus: 报价,合同; glm-4" (model: keywords, semicolon
+      separated, declaration order = priority, first hit wins). Requests with no keyword
+      hit go to default_target. API keys live only in each provider's secret field.
+      Real upstream model names stay server-side; end users see only the logical model.
+      Keyword routing is business classification, not a security boundary. Saving
+      validates every model with one minimal chat request. Details in the plugin README.
     zh_Hans: >-
-      安装后添加自定义模型（例如 routed-chat），填写 rules_json（目标清单与关键词规则）和
-      credentials_map（各目标密钥）。上游真实模型名只在服务端可见，最终用户只看到一个逻辑模型。
-      关键词路由用于业务分流，不构成安全边界。保存时会对每个目标发起一次最小连通性请求。
-      JSON 格式见插件 README。
+      最多 4 个上游 provider；每个 provider 填名称 / base_url / API Key 和模型清单，
+      形如 "qwen-plus: 报价,合同; glm-4"（模型: 关键词，分号分隔，声明顺序即优先级，
+      先命中先得）。未命中关键词的请求走 default_target。密钥只存在于各 provider 的
+      密文字段。上游真实模型名只在服务端可见，最终用户只看到一个逻辑模型。关键词路由
+      用于业务分流，不构成安全边界。保存时会对每个模型发起一次最小连通性请求。
+      详见插件 README。
 supported_model_types:
   - llm
 configurate_methods:
@@ -54,30 +58,133 @@ model_credential_schema:
           label:
             en_US: Chat
             zh_Hans: 对话
-    - variable: rules_json
+
+    # ---- Provider slots 1..4 --------------------------------------------
+    - variable: p1_name
+      type: text-input
+      required: false
+      label:
+        en_US: "Provider 1 - display name"
+        zh_Hans: 提供商 1 - 名称
+      placeholder:
+        en_US: "e.g. tongyi"
+        zh_Hans: "例如 tongyi"
+    - variable: p1_base_url
+      type: text-input
+      required: false
+      label:
+        en_US: "Provider 1 - base URL (OpenAI-compatible)"
+        zh_Hans: 提供商 1 - base_url（OpenAI 兼容）
+      placeholder:
+        en_US: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        zh_Hans: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    - variable: p1_key
+      type: secret-input
+      required: false
+      label:
+        en_US: "Provider 1 - API key"
+        zh_Hans: 提供商 1 - API Key
+      placeholder:
+        en_US: "Empty for no auth (local gateway)"
+        zh_Hans: 留空表示无鉴权（本地网关）
+      help:
+        en_US: Stored in the encrypted credential field; never appears in rules, responses or logs.
+        zh_Hans: 存于密文凭据字段；不会出现在规则、响应或日志中。
+    - variable: p1_models
+      type: text-input
+      required: false
+      label:
+        en_US: "Provider 1 - models: keywords; models"
+        zh_Hans: "提供商 1 - 模型: 关键词; 其他模型"
+      placeholder:
+        en_US: "qwen-plus: 报价,合同; qwen3-coder: 代码,refactor; glm-4"
+        zh_Hans: "qwen-plus: 报价,合同; qwen3-coder: 代码,refactor; glm-4"
+      help:
+        en_US: "Format model: kw1,kw2; model2: kw; model3 - semicolon splits entries, declaration order is priority (first hit wins). Entries without keywords act as fallback-only targets. Comma and ; : may be full-width."
+        zh_Hans: "格式“模型: 关键词1,关键词2; 模型2: 关键词; 模型3”。分号分隔条目，声明顺序即优先级（先命中先得）；不带关键词的条目只作为兜底目标；中英文逗号、分号、冒号均可。"
+    - variable: p2_name
+      type: text-input
+      required: false
+      label:
+        en_US: "Provider 2 - display name"
+        zh_Hans: 提供商 2 - 名称
+    - variable: p2_base_url
+      type: text-input
+      required: false
+      label:
+        en_US: "Provider 2 - base URL (OpenAI-compatible)"
+        zh_Hans: 提供商 2 - base_url（OpenAI 兼容）
+    - variable: p2_key
+      type: secret-input
+      required: false
+      label:
+        en_US: "Provider 2 - API key"
+        zh_Hans: 提供商 2 - API Key
+    - variable: p2_models
+      type: text-input
+      required: false
+      label:
+        en_US: "Provider 2 - models: keywords; models"
+        zh_Hans: "提供商 2 - 模型: 关键词; 其他模型"
+    - variable: p3_name
+      type: text-input
+      required: false
+      label:
+        en_US: "Provider 3 - display name"
+        zh_Hans: 提供商 3 - 名称
+    - variable: p3_base_url
+      type: text-input
+      required: false
+      label:
+        en_US: "Provider 3 - base URL (OpenAI-compatible)"
+        zh_Hans: 提供商 3 - base_url（OpenAI 兼容）
+    - variable: p3_key
+      type: secret-input
+      required: false
+      label:
+        en_US: "Provider 3 - API key"
+        zh_Hans: 提供商 3 - API Key
+    - variable: p3_models
+      type: text-input
+      required: false
+      label:
+        en_US: "Provider 3 - models: keywords; models"
+        zh_Hans: "提供商 3 - 模型: 关键词; 其他模型"
+    - variable: p4_name
+      type: text-input
+      required: false
+      label:
+        en_US: "Provider 4 - display name"
+        zh_Hans: 提供商 4 - 名称
+    - variable: p4_base_url
+      type: text-input
+      required: false
+      label:
+        en_US: "Provider 4 - base URL (OpenAI-compatible)"
+        zh_Hans: 提供商 4 - base_url（OpenAI 兼容）
+    - variable: p4_key
+      type: secret-input
+      required: false
+      label:
+        en_US: "Provider 4 - API key"
+        zh_Hans: 提供商 4 - API Key
+    - variable: p4_models
+      type: text-input
+      required: false
+      label:
+        en_US: "Provider 4 - models: keywords; models"
+        zh_Hans: "提供商 4 - 模型: 关键词; 其他模型"
+
+    - variable: default_target
       type: text-input
       required: true
       label:
-        en_US: Routing rules (JSON)
-        zh_Hans: 路由规则（JSON）
+        en_US: Default target (model name when no keyword hits)
+        zh_Hans: 默认目标（未命中关键词时使用的模型名）
       placeholder:
-        en_US: '{"schema_version":1,"default_model":"general","models":[],"rules":[]}'
-        zh_Hans: '{"schema_version":1,"default_model":"general","models":[],"rules":[]}'
-      help:
-        en_US: "Target list and keyword rules, versioned as one JSON document (schema_version must be 1). Full format and example in the plugin README."
-        zh_Hans: 目标清单与关键词规则，整份以版本化 JSON 保存（schema_version 必须为 1）。格式与示例见插件 README。
-    - variable: credentials_map
-      type: secret-input
-      required: true
-      label:
-        en_US: "Credential map (JSON: credential_ref -> API key)"
-        zh_Hans: 密钥映射（JSON：credential_ref -> API Key）
-      placeholder:
-        en_US: '{"main-key":"sk-..."}'
-        zh_Hans: '{"main-key":"sk-..."}'
-      help:
-        en_US: Maps each credential_ref used in rules_json to that upstream's API key. Keys never appear in rules_json.
-        zh_Hans: 把 rules_json 中引用的 credential_ref 映射为对应上游 API Key；密钥不出现在规则 JSON 中。
+        en_US: "e.g. qwen-plus"
+        zh_Hans: "例如 qwen-plus"
+
     - variable: uncheck_policy
       type: select
       required: false
@@ -89,8 +196,8 @@ model_credential_schema:
         en_US: When the request contains content that cannot be keyword-checked
         zh_Hans: 请求含无法按文本检查的内容时
       help:
-        en_US: default_route falls through to normal matching (default target if no keyword hits); reject fails the request with an explicit error; fixed_target always goes to the target id in the next field.
-        zh_Hans: default_route 照常走规则与默认目标；reject 直接报错拒绝；fixed_target 固定使用下一字段指定的目标。
+        en_US: default_route falls through to normal matching (default target if no keyword hits); reject fails the request with an explicit error; fixed_target always goes to the model named in the next field.
+        zh_Hans: default_route 照常走规则与默认目标；reject 直接报错拒绝；fixed_target 固定使用下一字段指定的模型。
       options:
         - value: default_route
           label:
@@ -108,11 +215,13 @@ model_credential_schema:
       type: text-input
       required: false
       label:
-        en_US: Target id used when policy is fixed_target
-        zh_Hans: fixed_target 策略使用的目标 id
+        en_US: Model used when policy is fixed_target
+        zh_Hans: fixed_target 策略使用的模型名
       placeholder:
-        en_US: "e.g. general"
-        zh_Hans: "例如 general"
+        en_US: "e.g. qwen-plus"
+        zh_Hans: "例如 qwen-plus"
+
+    # ---- Capability declarations -----------------------------------------
     - variable: vision_support
       type: select
       required: false
@@ -123,6 +232,9 @@ model_credential_schema:
       label:
         en_US: Vision support
         zh_Hans: 视觉支持
+      help:
+        en_US: Declare support only if EVERY routed target can accept images.
+        zh_Hans: 仅当所有路由目标都支持图片时才声明支持。
       options:
         - value: support
           label:
@@ -241,6 +353,8 @@ model_credential_schema:
       placeholder:
         en_US: Enter the smallest output limit among routed targets
         zh_Hans: 填写各路由目标中最小的输出上限
+
+    # ---- HTTP timeouts -----------------------------------------------------
     - variable: connect_timeout
       type: text-input
       required: false

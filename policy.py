@@ -1,34 +1,44 @@
-"""纯规则层：解析并校验路由配置 JSON，按关键词做确定性决策。不发起任何网络请求。
+"""纯规则层：解析 4 组 provider 槽位与逐行 DSL，按关键词做确定性决策。不发起任何网络请求。
 
-配置契约（schema_version=1）：
-  {"schema_version":1,
-   "default_model":"<目标id>",
-   "models":[{"id":...,"provider":...,"model":...,"base_url":...,"credential_ref":...}],
-   "rules":[{"id":...,"priority":10,"model_id":...,"keywords":[...]}]}
+配置形态（v0.2 起，取代早期 rules_json/credentials_map 两份 JSON）：
+  - 每个 provider 槽位（p1..p4）四个字段：
+      pN_name       provider 显示名（仅用于报错与调试，不参与路由）
+      pN_base_url   OpenAI 兼容 base_url（http/https）
+      pN_key        API Key（secret 字段，可留空=无鉴权，例如本地服务）
+      pN_models     模型与关键词，单行分号分隔 DSL：
+                    "qwen-plus: 报价,合同 ; qwen3-coder: 代码,refactor ; glm-4"
+                    段格式 `模型名: 关键词1,关键词2`；无冒号则该模型不配关键词（可作兜底）
+  - default_target   未命中任何关键词时使用的模型名（必填）
+  - uncheck_policy / uncheck_target  非文本内容策略（沿用 v0.1 语义）
 
 规则语义（与 docs/dify-routing-plugin-plan.md 一致）：
-  - 关键词按 casefold + NFC 归一后做子串匹配；
-  - 按 priority 升序（越小越先），同优先级按声明顺序，命中第一条即路由；
+  - 关键词按 casefold + NFC 归一后做子串匹配；中英文逗号、分号、冒号均可；
+  - 目标顺序 = 优先级（槽位 p1→p4、槽内声明顺序），先命中先得；
   - 不做静默失败转移；配置错误必须显式报错；
-  - 非文本内容按 uncheck_policy 处理：default_route / reject / fixed_target。
+  - 非文本内容按 uncheck_policy 处理：default_route / reject / fixed_target；
+  - API Key 仅存在于各 provider 槽位的 secret 字段，绝不进入规则文本/日志/错误信息。
 """
 
 from __future__ import annotations
 
-import json
+import re
 import unicodedata
 from dataclasses import dataclass
 
-MAX_RULES_JSON_BYTES = 64 * 1024
+MAX_MODELS_TEXT_BYTES = 64 * 1024
+MAX_PROVIDERS = 4
 MAX_TARGETS = 16
-MAX_RULES = 64
-MAX_KEYWORDS_PER_RULE = 32
+MAX_KEYWORDS_PER_TARGET = 32
+MAX_NAME_CHARS = 40
 
 UNCHECK_POLICIES = ("default_route", "reject", "fixed_target")
 
+# 模型名不允许的字符：结构分隔符与空白
+_MODEL_BAD_CHARS = set("；;:：,， \t\r\n")
+
 
 class ConfigError(ValueError):
-    """路由配置不合法（JSON 结构、引用缺失、超限等）。"""
+    """路由配置不合法（DSL 结构、引用缺失、超限等）。"""
 
 
 class UnknownContentRejected(Exception):
@@ -41,19 +51,18 @@ def normalize(text: str) -> str:
 
 @dataclass(frozen=True)
 class Target:
-    id: str
-    provider: str
-    model: str
+    id: str            # 模型名（全局唯一，所有引用均用它）
+    provider: str      # provider 显示名（报错用）
     base_url: str
-    credential_ref: str
+    api_key: str       # 可为空串（无鉴权上游）；不得出现在错误信息/日志中
 
 
 @dataclass(frozen=True)
 class Rule:
-    id: str
-    priority: int
+    id: str            # 等于目标模型名
+    priority: int      # 全局声明顺序，越小越先
     model_id: str
-    keywords: tuple  # 归一化后的关键词（str 元组）
+    keywords: tuple    # 归一化后的关键词（str 元组）
 
 
 @dataclass(frozen=True)
@@ -67,7 +76,7 @@ class Decision:
 class Policy:
     default_model: str
     targets: dict  # id -> Target
-    rules: tuple  # 已按 (priority, 声明顺序) 排序
+    rules: tuple   # 已按 (priority,) 排序，即声明顺序
     uncheck_policy: str
     uncheck_target: str
 
@@ -87,133 +96,123 @@ class Policy:
         return Decision(self.targets[self.default_model], None, "default")
 
 
-def _require_str(obj: dict, key: str, where: str, allow_empty: bool = False) -> str:
-    val = obj.get(key)
-    if not isinstance(val, str):
-        raise ConfigError(f"{where}.{key} 必须是字符串")
-    if not allow_empty and not val.strip():
-        raise ConfigError(f"{where}.{key} 不能为空")
-    return val
+def _split_segments(models_text: str) -> list:
+    """分号（中英文均可）切段；空段忽略。"""
+    return [s.strip() for s in models_text.replace("；", ";").split(";") if s.strip()]
 
 
-def parse_policy(
-    rules_json: str,
-    credential_keys: set,
+def _split_keywords(kw_part: str) -> list:
+    """逗号（中英文均可）切关键词；strip 后丢弃空项。关键词内部允许空格。"""
+    return [k.strip() for k in kw_part.replace("，", ",").split(",") if k.strip()]
+
+
+def parse_providers(
+    providers: list,  # [(slot_no, name, base_url, api_key, models_text)]
+    default_target: str,
     uncheck_policy: str = "default_route",
     uncheck_target: str = "",
 ) -> Policy:
-    if len(rules_json.encode("utf-8")) > MAX_RULES_JSON_BYTES:
-        raise ConfigError(f"rules_json 超过 {MAX_RULES_JSON_BYTES} 字节上限")
-    try:
-        data = json.loads(rules_json)
-    except ValueError as e:
-        raise ConfigError(f"rules_json 不是合法 JSON：{e}") from None
-    if not isinstance(data, dict):
-        raise ConfigError("rules_json 顶层必须是对象")
-    if data.get("schema_version") != 1:
-        raise ConfigError("仅支持 schema_version=1")
-
-    models = data.get("models")
-    if not isinstance(models, list) or not models:
-        raise ConfigError("models 必须是非空数组")
-    if len(models) > MAX_TARGETS:
-        raise ConfigError(f"目标数量超过上限 {MAX_TARGETS}")
     targets: dict[str, Target] = {}
-    for i, m in enumerate(models):
-        where = f"models[{i}]"
-        if not isinstance(m, dict):
-            raise ConfigError(f"{where} 必须是对象")
-        tid = _require_str(m, "id", where)
-        if tid in targets:
-            raise ConfigError(f"{where}.id 重复：{tid}")
-        provider = _require_str(m, "provider", where)
-        model = _require_str(m, "model", where)
-        base_url = _require_str(m, "base_url", where)
-        if not base_url.startswith(("http://", "https://")) or any(c.isspace() for c in base_url):
-            raise ConfigError(f"{where}.base_url 必须是 http(s) URL 且不含空白")
-        cred_ref = _require_str(m, "credential_ref", where)
-        if cred_ref not in credential_keys:
-            raise ConfigError(f"{where}.credential_ref={cred_ref} 未在 credentials_map 中找到")
-        targets[tid] = Target(tid, provider, model, base_url, cred_ref)
-
-    default_model = _require_str(data, "default_model", "根")
-    if default_model not in targets:
-        raise ConfigError(f"default_model={default_model} 不在 models 中")
-
-    rules_raw = data.get("rules")
-    if rules_raw is None:
-        rules_raw = []
-    if not isinstance(rules_raw, list):
-        raise ConfigError("rules 必须是数组")
-    if len(rules_raw) > MAX_RULES:
-        raise ConfigError(f"规则数量超过上限 {MAX_RULES}")
     rules: list[Rule] = []
-    seen_ids: set[str] = set()
-    for i, r in enumerate(rules_raw):
-        where = f"rules[{i}]"
-        if not isinstance(r, dict):
-            raise ConfigError(f"{where} 必须是对象")
-        rid = _require_str(r, "id", where)
-        if rid in seen_ids:
-            raise ConfigError(f"{where}.id 重复：{rid}")
-        seen_ids.add(rid)
-        priority = r.get("priority")
-        if not isinstance(priority, int) or isinstance(priority, bool):
-            raise ConfigError(f"{where}.priority 必须是整数")
-        model_id = _require_str(r, "model_id", where)
-        if model_id not in targets:
-            raise ConfigError(f"{where}.model_id={model_id} 不在 models 中")
-        kws = r.get("keywords")
-        if not isinstance(kws, list) or not kws:
-            raise ConfigError(f"{where}.keywords 必须是非空数组")
-        if len(kws) > MAX_KEYWORDS_PER_RULE:
-            raise ConfigError(f"{where}.keywords 数量超过上限 {MAX_KEYWORDS_PER_RULE}")
-        norm_kws = []
-        for kw in kws:
-            if not isinstance(kw, str) or not kw.strip():
-                raise ConfigError(f"{where}.keywords 必须是非空字符串数组")
-            norm_kws.append(normalize(kw))
-        rules.append(Rule(rid, priority, model_id, tuple(norm_kws)))
-    rules.sort(key=lambda item: item.priority)  # 稳定排序，保留声明顺序
+    priority = 0
+
+    if len(providers) > MAX_PROVIDERS:
+        raise ConfigError(f"provider 槽位数量超过上限 {MAX_PROVIDERS}")
+
+    for slot_no, name, base_url, api_key, models_text in providers:
+        where = f"p{slot_no}"
+        name = (name or "").strip()[:MAX_NAME_CHARS] or f"upstream{slot_no}"
+        base_url = (base_url or "").strip()
+        api_key = (api_key or "").strip()
+        models_text = (models_text or "").strip()
+
+        configured = bool(base_url or models_text or api_key)
+        if not configured:
+            continue
+        if not base_url:
+            raise ConfigError(f"{where}（{name}）：填写了密钥或模型清单，但缺少 base_url")
+        if not base_url.startswith(("http://", "https://")) or any(c.isspace() for c in base_url):
+            raise ConfigError(f"{where}（{name}）：base_url 必须是 http(s) URL 且不含空白")
+        segments = _split_segments(models_text)
+        if not segments:
+            raise ConfigError(f"{where}（{name}）：models 至少需要填写一个模型名")
+        if len(models_text.encode("utf-8")) > MAX_MODELS_TEXT_BYTES:
+            raise ConfigError(f"{where}：models 文本超过 {MAX_MODELS_TEXT_BYTES} 字节上限")
+
+        for seg in segments:
+            m = re.split(r"[：:]", seg, maxsplit=1)
+            model_id = m[0].strip()
+            kw_part = m[1] if len(m) > 1 else ""
+            if not model_id:
+                raise ConfigError(f"{where}（{name}）：存在空模型名（段 {seg!r}）")
+            bad = _MODEL_BAD_CHARS.intersection(model_id)
+            if bad:
+                raise ConfigError(f"{where}（{name}）：模型名 {model_id!r} 含非法字符 {sorted(bad)}")
+            if model_id in targets:
+                raise ConfigError(f"模型名重复：{model_id}（模型名需在所有 provider 间唯一）")
+            targets[model_id] = Target(model_id, name, base_url, api_key)
+            kws = _split_keywords(kw_part)
+            if len(kws) > MAX_KEYWORDS_PER_TARGET:
+                raise ConfigError(f"{where}（{name}）/{model_id}：关键词数量超过上限 {MAX_KEYWORDS_PER_TARGET}")
+            rules.append(Rule(model_id, priority, model_id, tuple(normalize(k) for k in kws)))
+            priority += 1
+
+    if len(targets) > MAX_TARGETS:
+        raise ConfigError(f"模型总数超过上限 {MAX_TARGETS}")
+    if not targets:
+        raise ConfigError("至少需要配置一个 provider 槽位（含 base_url 与模型清单）")
+
+    default_target = (default_target or "").strip()
+    if not default_target:
+        raise ConfigError("default_target（默认目标）必填：未命中关键词时使用的模型名")
+    if default_target not in targets:
+        raise ConfigError(f"default_target={default_target!r} 不在任何 provider 的模型清单中")
 
     if uncheck_policy not in UNCHECK_POLICIES:
         raise ConfigError(f"uncheck_policy 必须是 {UNCHECK_POLICIES} 之一")
-    if uncheck_policy == "fixed_target" and uncheck_target not in targets:
-        raise ConfigError(f"uncheck_target={uncheck_target} 不在 models 中（策略 fixed_target 必填）")
+    if uncheck_policy == "fixed_target":
+        uncheck_target = (uncheck_target or "").strip()
+        if uncheck_target not in targets:
+            raise ConfigError(f"uncheck_target={uncheck_target!r} 不在模型清单中（策略 fixed_target 时必填）")
+    else:
+        uncheck_target = (uncheck_target or "").strip()
 
-    return Policy(default_model, targets, tuple(rules), uncheck_policy, uncheck_target)
+    rules.sort(key=lambda item: item.priority)
+    return Policy(default_target, targets, tuple(rules), uncheck_policy, uncheck_target)
+
+
+def _seconds(name: str, raw, default: int, lo: int, hi: int) -> int:
+    if raw in (None, ""):
+        return default
+    try:
+        return max(lo, min(hi, int(str(raw).strip())))
+    except ValueError:
+        raise ConfigError(f"{name} 必须是整数秒") from None
 
 
 def load_policy_from_credentials(credentials: dict):
-    """从自定义模型实例凭据中解析出 (policy, api_keys, connect_s, read_s)。
+    """从自定义模型实例凭据中解析出 (policy, connect_s, read_s)。
 
     provider 的连通性校验与 llm._invoke 共用此入口，保证校验与运行配置一致。
+    API Key 只随 Target 返回，调用方不得写入错误信息或日志。
     """
-    rules_json = (credentials.get("rules_json") or "").strip()
-    raw_map = credentials.get("credentials_map") or ""
-    try:
-        api_keys = json.loads(raw_map)
-    except ValueError as e:
-        raise ConfigError(f"credentials_map 不是合法 JSON：{e}") from None
-    if not isinstance(api_keys, dict) or not api_keys:
-        raise ConfigError("credentials_map 必须是非空 JSON 对象")
-    for ref, key in api_keys.items():
-        if not isinstance(ref, str) or not ref.strip() or not isinstance(key, str) or not key.strip():
-            raise ConfigError("credentials_map 的键与值必须都是非空字符串")
-
-    def _seconds(name: str, default: int, lo: int, hi: int) -> int:
-        val = credentials.get(name)
-        if val in (None, ""):
-            return default
-        try:
-            return max(lo, min(hi, int(str(val).strip())))
-        except ValueError:
-            raise ConfigError(f"{name} 必须是整数秒") from None
-
-    policy = parse_policy(
-        rules_json,
-        set(api_keys.keys()),
-        (credentials.get("uncheck_policy") or "default_route").strip(),
-        (credentials.get("uncheck_target") or "").strip(),
+    creds = credentials or {}
+    providers = [
+        (
+            i,
+            creds.get(f"p{i}_name") or "",
+            creds.get(f"p{i}_base_url") or "",
+            creds.get(f"p{i}_key") or "",
+            creds.get(f"p{i}_models") or "",
+        )
+        for i in range(1, MAX_PROVIDERS + 1)
+    ]
+    policy = parse_providers(
+        providers,
+        creds.get("default_target") or "",
+        (creds.get("uncheck_policy") or "default_route").strip(),
+        creds.get("uncheck_target") or "",
     )
-    return policy, dict(api_keys), _seconds("connect_timeout", 10, 1, 60), _seconds("read_timeout", 120, 5, 600)
+    connect_s = _seconds("connect_timeout", creds.get("connect_timeout"), 10, 1, 60)
+    read_s = _seconds("read_timeout", creds.get("read_timeout"), 120, 5, 600)
+    return policy, connect_s, read_s

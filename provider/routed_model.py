@@ -11,20 +11,20 @@ class RoutedModelProvider(ModelProvider):
         注意：ping 会真实打到上游并消耗少量 token，这是方案 §4 明确要求的连通性验收。
         """
         try:
-            policy, api_keys, connect_s, read_s = load_policy_from_credentials(credentials)
+            policy, connect_s, read_s = load_policy_from_credentials(credentials)
         except ConfigError as e:
             raise ValueError(f"路由配置无效：{e}") from None
 
         for target in policy.targets.values():
             payload = {
-                "model": target.model,
+                "model": target.id,
                 "messages": [{"role": "user", "content": "ping"}],
                 "max_tokens": 8,
                 "stream": False,
             }
             try:
                 resp = chat_completions(
-                    target, api_keys.get(target.credential_ref, ""), payload,
+                    target, payload,
                     timeout=(connect_s, min(read_s, 30)), stream=False,
                 )
             except Exception as e:  # 包括 UpstreamError 与 requests 异常

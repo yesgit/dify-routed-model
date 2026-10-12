@@ -9,10 +9,10 @@ workspace administrator, configure**.
   among endpoints you entered; the plugin does not send data anywhere else.
 - **Storage:** none. The plugin keeps no persistent store and does not upload prompts,
   conversations, usage statistics, or telemetry to the plugin author.
-- **Credentials:** API keys are entered in the plugin's secret field
-  (`credentials_map`) and are used solely to build the `Authorization: Bearer` header
-  for the matching upstream. Keys are never included in rule documents, model
-  responses, or error messages.
+- **Credentials:** each configured provider keeps its API key in Dify's encrypted
+  per-provider secret field (`pN_key`); keys are used solely to build the
+  `Authorization: Bearer` header for that upstream and never appear in the
+  models/keywords text, model responses, or error messages.
 - **Logs/errors:** failure messages contain the target id and upstream HTTP status
   only — never request bodies or keys.
 - **Install-time traffic:** the Dify plugin daemon downloads pinned dependencies

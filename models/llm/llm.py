@@ -34,10 +34,21 @@ from targets import UpstreamError, build_messages, build_payload, chat_completio
 _BUNDLE_CACHE_LIMIT = 8
 
 
+_CACHE_KEYS = [
+    "default_target", "uncheck_policy", "uncheck_target",
+    "vision_support", "function_calling_type", "structured_output_support",
+    "connect_timeout", "read_timeout",
+]
+for _i in range(1, 5):
+    for _f in ("name", "base_url", "key", "models"):
+        _CACHE_KEYS.append(f"p{_i}_{_f}")
+
+_CREDENTIAL_FIELDS = tuple(sorted(_CACHE_KEYS))
+
+
 @dataclass(frozen=True)
 class Bundle:
     policy: Policy
-    api_keys: dict
     vision_support: bool
     function_calling_type: str
     structured_output_support: bool
@@ -95,23 +106,18 @@ def _map_tool_calls(raw_list: list) -> list:
 
 
 class RoutedModelLargeLanguageModel(LargeLanguageModel):
-    # 简单 LRU 式缓存：凭据字符串不变时复用解析结果，避免每 token 请求重解析 JSON
+    # 简单 LRU 式缓存：凭据字符串不变时复用解析结果，避免每 token 请求重解析 DSL
     _bundles: dict = {}
 
     def _bundle(self, credentials: dict) -> Bundle:
         creds = credentials or {}
-        cache_key = tuple(str(creds.get(k, "")) for k in (
-            "rules_json", "credentials_map", "uncheck_policy", "uncheck_target",
-            "vision_support", "function_calling_type", "structured_output_support",
-            "connect_timeout", "read_timeout",
-        ))
+        cache_key = tuple(str(creds.get(k, "")) for k in _CREDENTIAL_FIELDS)
         bundle = self._bundles.get(cache_key)
         if bundle is not None:
             return bundle
-        policy, api_keys, connect_s, read_s = load_policy_from_credentials(creds)
+        policy, connect_s, read_s = load_policy_from_credentials(creds)
         bundle = Bundle(
             policy=policy,
-            api_keys=api_keys,
             vision_support=_flag(creds, "vision_support", "support"),
             function_calling_type=(creds.get("function_calling_type") or "no_call").strip(),
             structured_output_support=_flag(creds, "structured_output_support", "supported"),
@@ -157,7 +163,7 @@ class RoutedModelLargeLanguageModel(LargeLanguageModel):
             )
 
         payload = build_payload(
-            upstream_model=target.model,
+            upstream_model=target.id,
             messages=messages,
             model_parameters=model_parameters,
             tools=tools,
@@ -166,13 +172,9 @@ class RoutedModelLargeLanguageModel(LargeLanguageModel):
             function_calling_type=bundle.function_calling_type,
             structured_output_support=bundle.structured_output_support,
         )
-        api_key = bundle.api_keys.get(target.credential_ref, "")
-        if not api_key:
-            raise ValueError(f"目标 {target.id} 的 credential_ref={target.credential_ref} 在 credentials_map 中为空")
-
         try:
             resp = chat_completions(
-                target, api_key, payload,
+                target, payload,
                 timeout=(bundle.connect_s, bundle.read_s), stream=stream,
             )
         except UpstreamError as e:
