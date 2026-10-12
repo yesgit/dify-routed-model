@@ -53,23 +53,30 @@ A slot is active as soon as any of its fields is filled; `pN_models` and
 ### Models/keywords syntax (one line, semicolon-separated)
 
 ```
-qwen-plus: 报价,合同,legal ; qwen3-coder-plus: 代码审查,堆栈,refactor,stack trace ; glm-4
+qwen-plus: 报价,合同,legal ; coder=qwen3-coder-plus: 代码审查,堆栈,refactor ; glm-4
 ```
 
-- Each entry is `model: keyword1,keyword2` — the part after `:` may contain spaces
-  (e.g. `stack trace`). Entries without `:` are valid (target with no keywords,
-  usable only as default/uncheck target).
+- Each entry is `[route-name=]model: keyword1,keyword2` — the part after `:` may
+  contain spaces (e.g. `stack trace`). Entries without `:` are valid (target with no
+  keywords, usable only as default/uncheck target).
+- **`route-name=` alias**: the id used everywhere (keywords, `default_target`,
+  `uncheck_target`) is the route name, while the right side of `=` is the model name
+  actually sent upstream. Omit `=` and the model name doubles as the route name.
+  This lets **two providers expose the same upstream model** (e.g. DashScope
+  `qwen-plus` and a private gateway's `qwen-plus`) as separate routing targets:
+  `ds=qwen-plus: 报价 ; local=qwen-plus`. Route names must be globally unique;
+  upstream model names may repeat.
 - Entries are evaluated **in declaration order across all slots (p1 → p4)**; the first
   target with any keyword found (substring, casefold + NFC) wins. Chinese full-width
   punctuation (`；` `：` `，`) also works.
-- Model names must be **globally unique** across slots (they are the routing ids).
 - Limits: ≤4 providers, ≤16 models total, ≤32 keywords per model, ≤64 KB per line.
 - The input is single-line in Dify's UI; if you paste text with newlines, they are
   stripped — the grammar above is newline-free by design.
 
 ### `default_target` (required)
 
-Model name used when no keyword hits anywhere, e.g. `qwen-plus`.
+**Route name** (alias, or the model name when no alias) used when no keyword hits
+anywhere, e.g. `qwen-plus` or `ds`.
 
 ### Unknown-content policy
 
@@ -80,7 +87,7 @@ model, audio, files…) are counted. `uncheck_policy` decides:
 | --- | --- |
 | `default_route` (default) | continue normal matching |
 | `reject` | fail the request with an explicit error |
-| `fixed_target` | always route to the model named in `uncheck_target` |
+| `fixed_target` | always route to the route-name set in `uncheck_target` |
 
 A target that genuinely cannot receive a content part (e.g. image with
 `vision_support: no_support`) makes the request fail loudly rather than silently
@@ -99,14 +106,14 @@ per-request HTTP call.
 p1_name      = tongyi
 p1_base_url  = https://dashscope.aliyuncs.com/compatible-mode/v1
 p1_key       = sk-...                      (secret)
-p1_models    = qwen-plus: 报价,合同; qwen3-coder-plus: 代码审查,refactor,堆栈
+p1_models    = qwen-plus: 报价,合同; coder=qwen3-coder-plus: 代码审查,refactor,堆栈
 
-p2_name      = openai
-p2_base_url  = https://api.openai.com/v1
-p2_key       = sk-...                      (secret)
-p2_models    = gpt-4o: legal,合同审查
+p2_name      = private-gateway
+p2_base_url  = https://llm.internal.example/v1
+p2_key       =                              (empty = no auth)
+p2_models    = local=qwen-plus              (same upstream model as p1, different route)
 
-default_target = qwen-plus
+default_target = qwen-plus                  (route name; here p1's model without alias)
 ```
 
 `A 1.8.1 note:` saving the model sends one minimal `ping` chat request to **every**
@@ -139,7 +146,7 @@ routed-model/
 Package with the Dify plugin CLI:
 
 ```sh
-dify plugin package ./routed-model -o routed_model-0.2.1.difypkg
+dify plugin package ./routed-model -o routed_model-0.2.2.difypkg
 ```
 
 Runtime requires the plugin daemon to install `requirements.txt` at add-time

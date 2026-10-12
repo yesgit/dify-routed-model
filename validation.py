@@ -25,7 +25,7 @@ def validate_and_ping(credentials: dict) -> None:
     policy, connect_s, read_s = load_policy_from_credentials(credentials)
     for target in policy.targets.values():
         payload = {
-            "model": target.id,
+            "model": target.upstream,
             "messages": [{"role": "user", "content": "ping"}],
             "max_tokens": 8,
             "stream": False,

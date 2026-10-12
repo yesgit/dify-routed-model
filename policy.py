@@ -6,8 +6,11 @@
       pN_base_url   OpenAI 兼容 base_url（http/https）
       pN_key        API Key（secret 字段，可留空=无鉴权，例如本地服务）
       pN_models     模型与关键词，单行分号分隔 DSL：
-                    "qwen-plus: 报价,合同 ; qwen3-coder: 代码,refactor ; glm-4"
-                    段格式 `模型名: 关键词1,关键词2`；无冒号则该模型不配关键词（可作兜底）
+                    "qwen-plus: 报价,合同 ; 别名=私有qwen3-coder: 代码,refactor ; glm-4"
+                    段格式 `[路由名=]上游模型名[: 关键词1,关键词2]`；
+                    `=` 左侧为路由 id（省略时即上游模型名），右侧为真实发给上游的模型名，
+                    因此不同 provider 上的同名上游模型可以用不同路由名并存；
+                    无冒号则该模型不配关键词（可作兜底）
   - default_target   未命中任何关键词时使用的模型名（必填）
   - uncheck_policy / uncheck_target  非文本内容策略（沿用 v0.1 语义）
 
@@ -29,12 +32,13 @@ MAX_MODELS_TEXT_BYTES = 64 * 1024
 MAX_PROVIDERS = 4
 MAX_TARGETS = 16
 MAX_KEYWORDS_PER_TARGET = 32
-MAX_NAME_CHARS = 40
+MAX_NAME_CHARS = 40          # 路由名（别名）长度上限
+MAX_UPSTREAM_CHARS = 120     # 上游真实模型名长度上限
 
 UNCHECK_POLICIES = ("default_route", "reject", "fixed_target")
 
-# 模型名不允许的字符：结构分隔符与空白
-_MODEL_BAD_CHARS = set("；;:：,， \t\r\n")
+# 路由名（别名）不允许的字符：结构分隔符与空白（`=` 用作别名/上游名分隔，也不允许）
+_MODEL_BAD_CHARS = set("；;:：,，= \t\r\n")
 
 
 class ConfigError(ValueError):
@@ -51,15 +55,16 @@ def normalize(text: str) -> str:
 
 @dataclass(frozen=True)
 class Target:
-    id: str            # 模型名（全局唯一，所有引用均用它）
+    id: str            # 路由名：别名或上游模型名（全局唯一，default/uncheck_target 均引用它）
     provider: str      # provider 显示名（报错用）
     base_url: str
     api_key: str       # 可为空串（无鉴权上游）；不得出现在错误信息/日志中
+    upstream: str      # 实际发给上游的模型名（允许跨 provider 重复）
 
 
 @dataclass(frozen=True)
 class Rule:
-    id: str            # 等于目标模型名
+    id: str            # 等于目标路由名
     priority: int      # 全局声明顺序，越小越先
     model_id: str
     keywords: tuple    # 归一化后的关键词（str 元组）
@@ -141,20 +146,31 @@ def parse_providers(
 
         for seg in segments:
             m = re.split(r"[：:]", seg, maxsplit=1)
-            model_id = m[0].strip()
+            name_part = m[0].strip()
             kw_part = m[1] if len(m) > 1 else ""
-            if not model_id:
+            if not name_part:
                 raise ConfigError(f"{where}（{name}）：存在空模型名（段 {seg!r}）")
-            bad = _MODEL_BAD_CHARS.intersection(model_id)
+            alias, sep, upstream_name = name_part.partition("=")
+            alias = alias.strip()
+            upstream_name = (upstream_name.strip() if sep else alias)
+            if not alias:
+                raise ConfigError(f"{where}（{name}）：存在空路由名（段 {seg!r}）")
+            bad = _MODEL_BAD_CHARS.intersection(alias)
             if bad:
-                raise ConfigError(f"{where}（{name}）：模型名 {model_id!r} 含非法字符 {sorted(bad)}")
-            if model_id in targets:
-                raise ConfigError(f"模型名重复：{model_id}（模型名需在所有 provider 间唯一）")
-            targets[model_id] = Target(model_id, name, base_url, api_key)
+                raise ConfigError(f"{where}（{name}）：路由名 {alias!r} 含非法字符 {sorted(bad)}（`=` 用于“别名=上游模型名”）")
+            if len(alias) > MAX_NAME_CHARS:
+                raise ConfigError(f"{where}（{name}）：路由名 {alias!r} 超过 {MAX_NAME_CHARS} 字符")
+            if not upstream_name:
+                raise ConfigError(f"{where}（{name}）：{alias} 缺少上游模型名（`=` 右侧为空）")
+            if any(c.isspace() for c in upstream_name) or len(upstream_name) > MAX_UPSTREAM_CHARS:
+                raise ConfigError(f"{where}（{name}）：上游模型名 {upstream_name!r} 不合法（不允许空白，长度 ≤{MAX_UPSTREAM_CHARS}）")
+            if alias in targets:
+                raise ConfigError(f"路由名重复：{alias}（路由名需在所有 provider 间唯一；上游模型名可重复，请用别名区分）")
+            targets[alias] = Target(alias, name, base_url, api_key, upstream_name)
             kws = _split_keywords(kw_part)
             if len(kws) > MAX_KEYWORDS_PER_TARGET:
-                raise ConfigError(f"{where}（{name}）/{model_id}：关键词数量超过上限 {MAX_KEYWORDS_PER_TARGET}")
-            rules.append(Rule(model_id, priority, model_id, tuple(normalize(k) for k in kws)))
+                raise ConfigError(f"{where}（{name}）/{alias}：关键词数量超过上限 {MAX_KEYWORDS_PER_TARGET}")
+            rules.append(Rule(alias, priority, alias, tuple(normalize(k) for k in kws)))
             priority += 1
 
     if len(targets) > MAX_TARGETS:
@@ -164,16 +180,16 @@ def parse_providers(
 
     default_target = (default_target or "").strip()
     if not default_target:
-        raise ConfigError("default_target（默认目标）必填：未命中关键词时使用的模型名")
+        raise ConfigError("default_target（默认目标）必填：未命中关键词时使用的路由名（别名或模型名）")
     if default_target not in targets:
-        raise ConfigError(f"default_target={default_target!r} 不在任何 provider 的模型清单中")
+        raise ConfigError(f"default_target={default_target!r} 不是任何已配置的路由名（别名或模型名）")
 
     if uncheck_policy not in UNCHECK_POLICIES:
         raise ConfigError(f"uncheck_policy 必须是 {UNCHECK_POLICIES} 之一")
     if uncheck_policy == "fixed_target":
         uncheck_target = (uncheck_target or "").strip()
         if uncheck_target not in targets:
-            raise ConfigError(f"uncheck_target={uncheck_target!r} 不在模型清单中（策略 fixed_target 时必填）")
+            raise ConfigError(f"uncheck_target={uncheck_target!r} 不是任何已配置的路由名（策略 fixed_target 时必填）")
     else:
         uncheck_target = (uncheck_target or "").strip()
 

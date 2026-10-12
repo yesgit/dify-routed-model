@@ -41,27 +41,32 @@ prompt_messages / tools / model_parameters
 | `pN_name` | 显示名，仅用于报错信息 |
 | `pN_base_url` | OpenAI 兼容 base_url，如 `https://dashscope.aliyuncs.com/compatible-mode/v1` |
 | `pN_key` | API Key，存放于 Dify **该 provider 的密文凭据字段**；本地无鉴权网关可留空 |
-| `pN_models` | 该 provider 下的模型与路由关键词（单行语法见下） |
+| `pN_models` | 该 provider 下的模型与路由关键词，可用“路由名=模型名”别名（单行语法见下） |
 
 只要槽位任一字段非空即视为启用，启用时 `pN_base_url` 与 `pN_models` 均必填。
 
 ### 模型/关键词行语法（单行、分号分隔）
 
 ```
-qwen-plus: 报价,合同,legal ; qwen3-coder-plus: 代码审查,堆栈,refactor,stack trace ; glm-4
+qwen-plus: 报价,合同,legal ; coder=qwen3-coder-plus: 代码审查,堆栈,refactor ; glm-4
 ```
 
-- 每个条目形如 `模型名: 关键词1,关键词2`；冒号后的关键词允许含空格（如 `stack trace`）。
-  不带冒号的条目也合法（该模型只作为兜底/固定目标）。
+- 每个条目形如 `[路由名=]模型名: 关键词1,关键词2`；冒号后的关键词允许含空格（如
+  `stack trace`）。不带冒号的条目也合法（该模型只作为兜底/固定目标）。
+- **`路由名=` 别名**：规则、`default_target`、`uncheck_target` 引用的都是**路由名**；
+  `=` 右侧才是真正发给上游的模型名。省略 `=` 时，模型名本身即路由名。这样
+  **两个 provider 提供同名模型**（如官方与私有网关都有 `qwen-plus`）也能各自成为
+  路由目标：`ds=qwen-plus: 报价 ; local=qwen-plus`。路由名必须全局唯一，
+  上游模型名允许重复。
 - 所有槽位按 **p1 → p4、槽内声明顺序** 依次比较，**先命中先得**；中英文标点
   （`；` `：` `，`）均可。
-- 模型名在所有 provider 间必须**全局唯一**（它就是路由引用 id）。
 - 上限：provider ≤4、模型总数 ≤16、每模型关键词 ≤32、单行 ≤64KB。
 - Dify 表单为单行输入框：粘贴带换行的文本会被去掉换行，请保持一行。
 
 ### default_target（默认目标，必填）
 
-任何关键词都未命中时使用的模型名，例如 `qwen-plus`。
+任何关键词都未命中时使用的**路由名**（别名；没起别名时就是模型名），例如 `qwen-plus`
+或 `ds`。
 
 ### 未知内容策略（uncheck_policy）
 
@@ -71,7 +76,7 @@ qwen-plus: 报价,合同,legal ; qwen3-coder-plus: 代码审查,堆栈,refactor,
 | --- | --- |
 | `default_route`（默认） | 照常走规则与默认目标 |
 | `reject` | 显式报错拒绝请求 |
-| `fixed_target` | 固定走 `uncheck_target` 指定的模型 |
+| `fixed_target` | 无条件固定走 `uncheck_target` 指定的路由名（在关键词匹配之前生效） |
 
 目标实际无法接收的内容段（如 `vision_support: no_support` 时出现图片）会直接报错，
 而不是悄悄丢弃内容。
@@ -82,14 +87,14 @@ qwen-plus: 报价,合同,legal ; qwen3-coder-plus: 代码审查,堆栈,refactor,
 p1_name      = tongyi
 p1_base_url  = https://dashscope.aliyuncs.com/compatible-mode/v1
 p1_key       = sk-...            （密文字段）
-p1_models    = qwen-plus: 报价,合同; qwen3-coder-plus: 代码审查,refactor,堆栈
+p1_models    = qwen-plus: 报价,合同; coder=qwen3-coder-plus: 代码审查,refactor,堆栈
 
-p2_name      = openai
-p2_base_url  = https://api.openai.com/v1
-p2_key       = sk-...            （密文字段）
-p2_models    = gpt-4o: 法律,合同审查
+p2_name      = 私有网关
+p2_base_url  = https://llm.internal.example/v1
+p2_key       =                    （留空 = 无鉴权）
+p2_models    = local=qwen-plus    （与 p1 同名上游，不同路由名）
 
-default_target = qwen-plus
+default_target = qwen-plus        （填路由名：别名，或未起别名时的模型名）
 ```
 
 ## 字段说明
@@ -98,8 +103,8 @@ default_target = qwen-plus
 | --- | --- |
 | `mode` | 仅支持 `chat` |
 | `p1..p4` | 最多 4 个上游 provider（名称/base_url/密钥/模型清单） |
-| `default_target` | 未命中关键词时的模型名 |
-| `uncheck_policy` / `uncheck_target` | 未知内容处理策略 |
+| `default_target` | 未命中关键词时的路由名（别名或模型名） |
+| `uncheck_policy` / `uncheck_target` | 未知内容处理策略（fixed_target 用的也是路由名） |
 | `vision_support` | 开启后图片段转 `image_url`（base64 data URL 或 http url） |
 | `function_calling_type` | `tool_call` 将 Dify 工具定义按 OpenAI `tools` 透传（Agent 场景推荐）；其余丢弃工具定义 |
 | `stream_function_calling` | 声明上游支持流式工具调用（增量参数会被累积后输出） |

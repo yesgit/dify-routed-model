@@ -97,11 +97,11 @@ model_credential_schema:
         en_US: "Provider 1 - models: keywords; models"
         zh_Hans: "提供商 1 - 模型: 关键词; 其他模型"
       placeholder:
-        en_US: "qwen-plus: 报价,合同; qwen3-coder: 代码,refactor; glm-4"
-        zh_Hans: "qwen-plus: 报价,合同; qwen3-coder: 代码,refactor; glm-4"
+        en_US: "qwen-plus: 报价,合同; coder=qwen3-coder: 代码,refactor; glm-4"
+        zh_Hans: "qwen-plus: 报价,合同; coder=qwen3-coder: 代码,refactor; glm-4"
       help:
-        en_US: "Format model: kw1,kw2; model2: kw; model3 - semicolon splits entries, declaration order is priority (first hit wins). Entries without keywords act as fallback-only targets. Comma and ; : may be full-width."
-        zh_Hans: "格式“模型: 关键词1,关键词2; 模型2: 关键词; 模型3”。分号分隔条目，声明顺序即优先级（先命中先得）；不带关键词的条目只作为兜底目标；中英文逗号、分号、冒号均可。"
+        en_US: "Format [route-name=]upstream-model: kw1,kw2; model2: kw - semicolon splits entries, declaration order is priority (first hit wins). Use route-name= when two providers expose the same upstream model name (route names are unique, model names may repeat). Entries without keywords act as fallback-only targets. Comma and ; : may be full-width."
+        zh_Hans: "格式“[路由名=]模型名: 关键词1,关键词2; 模型2: 关键词”。分号分隔条目，声明顺序即优先级（先命中先得）；不同 provider 存在同名模型时用“路由名=”起别名（路由名全局唯一，模型名可重复）；不带关键词的条目只作为兜底目标；中英文逗号、分号、冒号均可。"
     - variable: p2_name
       type: text-input
       required: false
@@ -179,8 +179,8 @@ model_credential_schema:
       type: text-input
       required: true
       label:
-        en_US: Default target (model name when no keyword hits)
-        zh_Hans: 默认目标（未命中关键词时使用的模型名）
+        en_US: Default target (route name used when no keyword hits)
+        zh_Hans: 默认目标（未命中关键词时使用的路由名：别名或模型名）
       placeholder:
         en_US: "e.g. qwen-plus"
         zh_Hans: "例如 qwen-plus"
@@ -215,8 +215,8 @@ model_credential_schema:
       type: text-input
       required: false
       label:
-        en_US: Model used when policy is fixed_target
-        zh_Hans: fixed_target 策略使用的模型名
+        en_US: Route target used when policy is fixed_target (route name)
+        zh_Hans: fixed_target 策略使用的路由名（别名或模型名）
       placeholder:
         en_US: "e.g. qwen-plus"
         zh_Hans: "例如 qwen-plus"

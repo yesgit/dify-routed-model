@@ -188,7 +188,7 @@ class RoutedModelLargeLanguageModel(LargeLanguageModel):
             )
 
         payload = build_payload(
-            upstream_model=target.id,
+            upstream_model=target.upstream,
             messages=messages,
             model_parameters=model_parameters,
             tools=tools,
