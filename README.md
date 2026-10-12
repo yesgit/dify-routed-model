@@ -64,7 +64,7 @@ qwen-plus: 报价,合同,legal ; coder=qwen3-coder-plus: 代码审查,堆栈,ref
   actually sent upstream. Omit `=` and the model name doubles as the route name.
   This lets **two providers expose the same upstream model** (e.g. DashScope
   `qwen-plus` and a private gateway's `qwen-plus`) as separate routing targets:
-  `ds=qwen-plus: 报价 ; local=qwen-plus`. Route names must be globally unique;
+  `ds=qwen-plus: legal ; local=qwen-plus`. Route names must be globally unique;
   upstream model names may repeat.
 - Entries are evaluated **in declaration order across all slots (p1 → p4)**; the first
   target with any keyword found (substring, casefold + NFC) wins. Chinese full-width
