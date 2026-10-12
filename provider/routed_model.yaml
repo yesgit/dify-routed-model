@@ -1,0 +1,257 @@
+provider: routed_model
+label:
+  en_US: Routed Keyword Model
+  zh_Hans: 关键词路由模型
+description:
+  en_US: Presents one logical chat model; routes each request to an admin-configured OpenAI-compatible upstream by deterministic keyword rules.
+  zh_Hans: 对外呈现一个聊天模型；按确定性关键词规则将每次请求路由到管理员配置的 OpenAI 兼容上游。
+icon_small:
+  en_US: "icon.svg"
+icon_large:
+  en_US: "icon.svg"
+background: "#0EA5E9"
+help:
+  title:
+    en_US: Configuration guide
+    zh_Hans: 配置说明
+  tip:
+    en_US: >-
+      After installing, add a custom model (e.g. routed-chat) and fill rules_json (targets and
+      keyword rules) and credentials_map (API keys per target). Real upstream model names stay
+      server-side; end users only see the logical model. Keyword routing is business
+      classification, not a security boundary. Saving this model validates every target with a
+      minimal chat request. See the plugin README for the JSON format.
+    zh_Hans: >-
+      安装后添加自定义模型（例如 routed-chat），填写 rules_json（目标清单与关键词规则）和
+      credentials_map（各目标密钥）。上游真实模型名只在服务端可见，最终用户只看到一个逻辑模型。
+      关键词路由用于业务分流，不构成安全边界。保存时会对每个目标发起一次最小连通性请求。
+      JSON 格式见插件 README。
+supported_model_types:
+  - llm
+configurate_methods:
+  - customizable-model
+model_credential_schema:
+  model:
+    label:
+      en_US: Logical model name
+      zh_Hans: 逻辑模型名称
+    placeholder:
+      en_US: "e.g. routed-chat"
+      zh_Hans: "例如 routed-chat"
+  credential_form_schemas:
+    - variable: mode
+      type: select
+      required: false
+      default: chat
+      show_on:
+        - variable: __model_type
+          value: llm
+      label:
+        en_US: Completion mode
+        zh_Hans: 对话类型
+      options:
+        - value: chat
+          label:
+            en_US: Chat
+            zh_Hans: 对话
+    - variable: rules_json
+      type: text-input
+      required: true
+      label:
+        en_US: Routing rules (JSON)
+        zh_Hans: 路由规则（JSON）
+      placeholder:
+        en_US: '{"schema_version":1,"default_model":"general","models":[],"rules":[]}'
+        zh_Hans: '{"schema_version":1,"default_model":"general","models":[],"rules":[]}'
+      help:
+        en_US: "Target list and keyword rules, versioned as one JSON document (schema_version must be 1). Full format and example in the plugin README."
+        zh_Hans: 目标清单与关键词规则，整份以版本化 JSON 保存（schema_version 必须为 1）。格式与示例见插件 README。
+    - variable: credentials_map
+      type: secret-input
+      required: true
+      label:
+        en_US: "Credential map (JSON: credential_ref -> API key)"
+        zh_Hans: 密钥映射（JSON：credential_ref -> API Key）
+      placeholder:
+        en_US: '{"main-key":"sk-..."}'
+        zh_Hans: '{"main-key":"sk-..."}'
+      help:
+        en_US: Maps each credential_ref used in rules_json to that upstream's API key. Keys never appear in rules_json.
+        zh_Hans: 把 rules_json 中引用的 credential_ref 映射为对应上游 API Key；密钥不出现在规则 JSON 中。
+    - variable: uncheck_policy
+      type: select
+      required: false
+      default: default_route
+      show_on:
+        - variable: __model_type
+          value: llm
+      label:
+        en_US: When the request contains content that cannot be keyword-checked
+        zh_Hans: 请求含无法按文本检查的内容时
+      help:
+        en_US: default_route falls through to normal matching (default target if no keyword hits); reject fails the request with an explicit error; fixed_target always goes to the target id in the next field.
+        zh_Hans: default_route 照常走规则与默认目标；reject 直接报错拒绝；fixed_target 固定使用下一字段指定的目标。
+      options:
+        - value: default_route
+          label:
+            en_US: "Default: keep normal routing"
+            zh_Hans: "默认：照常路由"
+        - value: reject
+          label:
+            en_US: "Reject the request"
+            zh_Hans: 拒绝请求
+        - value: fixed_target
+          label:
+            en_US: "Force a fixed target"
+            zh_Hans: 固定目标
+    - variable: uncheck_target
+      type: text-input
+      required: false
+      label:
+        en_US: Target id used when policy is fixed_target
+        zh_Hans: fixed_target 策略使用的目标 id
+      placeholder:
+        en_US: "e.g. general"
+        zh_Hans: "例如 general"
+    - variable: vision_support
+      type: select
+      required: false
+      default: no_support
+      show_on:
+        - variable: __model_type
+          value: llm
+      label:
+        en_US: Vision support
+        zh_Hans: 视觉支持
+      options:
+        - value: support
+          label:
+            en_US: Support
+            zh_Hans: 支持
+        - value: no_support
+          label:
+            en_US: Not Support
+            zh_Hans: 不支持
+    - variable: function_calling_type
+      type: select
+      required: false
+      default: no_call
+      show_on:
+        - variable: __model_type
+          value: llm
+      label:
+        en_US: Function calling type
+        zh_Hans: 函数调用类型
+      help:
+        en_US: tool_call forwards Dify tool definitions as OpenAI-style tools (recommended when using agents).
+        zh_Hans: tool_call 会将 Dify 工具定义按 OpenAI tools 透传（使用 Agent 时推荐）。
+      options:
+        - value: no_call
+          label:
+            en_US: Not supported
+            zh_Hans: 不支持
+        - value: function_call
+          label:
+            en_US: "Legacy function call"
+            zh_Hans: 旧式 function call
+        - value: tool_call
+          label:
+            en_US: Tool call
+            zh_Hans: 工具调用
+    - variable: stream_function_calling
+      type: select
+      required: false
+      default: not_supported
+      show_on:
+        - variable: __model_type
+          value: llm
+      label:
+        en_US: Streaming function calling
+        zh_Hans: 流式函数调用
+      options:
+        - value: supported
+          label:
+            en_US: Support
+            zh_Hans: 支持
+        - value: not_supported
+          label:
+            en_US: Not Support
+            zh_Hans: 不支持
+    - variable: agent_thought_support
+      type: select
+      required: false
+      default: not_supported
+      show_on:
+        - variable: __model_type
+          value: llm
+      label:
+        en_US: Agent thought
+        zh_Hans: 智能体思考
+      options:
+        - value: supported
+          label:
+            en_US: Support
+            zh_Hans: 支持
+        - value: not_supported
+          label:
+            en_US: Not Support
+            zh_Hans: 不支持
+    - variable: structured_output_support
+      type: select
+      required: false
+      default: not_supported
+      show_on:
+        - variable: __model_type
+          value: llm
+      label:
+        en_US: Structured output
+        zh_Hans: 结构化输出
+      options:
+        - value: supported
+          label:
+            en_US: Support
+            zh_Hans: 支持
+        - value: not_supported
+          label:
+            en_US: Not Support
+            zh_Hans: 不支持
+    - variable: context_size
+      type: text-input
+      required: true
+      default: "4096"
+      show_on:
+        - variable: __model_type
+          value: llm
+      label:
+        en_US: Model context size
+        zh_Hans: 模型上下文长度
+      placeholder:
+        en_US: Enter the smallest context among routed targets
+        zh_Hans: 填写各路由目标中最小的上下文长度
+    - variable: max_tokens_to_sample
+      type: text-input
+      required: true
+      default: "4096"
+      show_on:
+        - variable: __model_type
+          value: llm
+      label:
+        en_US: Maximum output tokens
+        zh_Hans: 最大输出 token
+      placeholder:
+        en_US: Enter the smallest output limit among routed targets
+        zh_Hans: 填写各路由目标中最小的输出上限
+    - variable: connect_timeout
+      type: text-input
+      required: false
+      default: "10"
+      label:
+        en_US: Connect timeout (seconds)
+        zh_Hans: 连接超时（秒）
+    - variable: read_timeout
+      type: text-input
+      required: false
+      default: "120"
+      label:
+        en_US: Read timeout (seconds)
+        zh_Hans: 读取超时（秒）

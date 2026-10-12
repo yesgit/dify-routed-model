@@ -1,0 +1,32 @@
+version: "0.1.0"
+type: plugin
+author: "yesgit"
+name: "routed_model"
+label:
+  en_US: "Routed Keyword Model"
+  zh_Hans: "关键词路由模型"
+description:
+  en_US: "One logical chat model that routes each request to an admin-configured OpenAI-compatible upstream by deterministic keyword rules. Routing is business classification, not a data-loss-prevention guarantee."
+  zh_Hans: "对外呈现一个聊天模型，按确定性关键词规则将请求路由到管理员配置的 OpenAI 兼容上游。路由用于业务分流，不构成防泄漏保证。"
+icon: "icon.svg"
+created_at: "2026-10-12T12:00:00.000000000Z"
+resource:
+  memory: 1048576
+  permission:
+    tool:
+      enabled: false
+    model:
+      enabled: true
+      llm: true
+plugins:
+  models:
+    - "provider/routed_model.yaml"
+meta:
+  version: "0.0.1"
+  arch:
+    - "amd64"
+    - "arm64"
+  runner:
+    language: python
+    version: "3.12"
+    entrypoint: main
