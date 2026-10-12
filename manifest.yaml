@@ -10,6 +10,9 @@ description:
   zh_Hans: "对外呈现一个聊天模型，按确定性关键词规则将请求路由到管理员配置的 OpenAI 兼容上游。路由用于业务分流，不构成防泄漏保证。"
 icon: "icon.svg"
 created_at: "2026-10-12T12:00:00.000000000Z"
+privacy: "PRIVACY.md"
+repo: "https://github.com/yesgit/dify-routed-model"
+contact: "yesgit@users.noreply.github.com"
 resource:
   memory: 1048576
   permission:
@@ -23,6 +26,7 @@ plugins:
     - "provider/routed_model.yaml"
 meta:
   version: "0.0.1"
+  minimum_dify_version: "1.8.0"
   arch:
     - "amd64"
     - "arm64"

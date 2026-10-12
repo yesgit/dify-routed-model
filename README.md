@@ -1,5 +1,7 @@
 # Routed Keyword Model (routed-model)
 
+Source repository: <https://github.com/yesgit/dify-routed-model>
+
 Presents **one logical chat model** in Dify. On every request the plugin picks one
 admin-configured **OpenAI-compatible upstream** using deterministic keyword rules, then
 forwards the full conversation to that single target. End users select `routed-chat`
