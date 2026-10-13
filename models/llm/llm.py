@@ -264,6 +264,23 @@ class RoutedModelLargeLanguageModel(LargeLanguageModel):
                     max=2.0,
                     precision=1,
                 ),
+                # 节点级路由提示：字符串模型参数会被 extract_text 并入路由匹配文本，
+                # 而 targets.PARAM_PASSTHROUGH 白名单不含它，绝不转发上游（见 README）。
+                ParameterRule(
+                    name="route_keywords",
+                    label=I18nObject(en_us="Routing keywords", zh_hans="路由关键词（本节点）"),
+                    help=I18nObject(
+                        en_us="Appends extra words to THIS node's routing text; never sent to the "
+                              "upstream model. Only keywords already defined in the provider config "
+                              "can hit; rule priority (declaration order) is unchanged.",
+                        zh_hans="为本节点的路由匹配文本追加关键词，不会发给上游模型；"
+                                "只有提供商配置里已定义的关键词才能命中；"
+                                "规则优先级不变（按声明顺序先命中先得）。",
+                    ),
+                    type=ParameterType.STRING,
+                    required=False,
+                    default="",
+                ),
             ],
         )
 

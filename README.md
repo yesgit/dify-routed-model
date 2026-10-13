@@ -78,6 +78,20 @@ qwen-plus: 报价,合同,legal ; coder=qwen3-coder-plus: 代码审查,堆栈,ref
 **Route name** (alias, or the model name when no alias) used when no keyword hits
 anywhere, e.g. `qwen-plus` or `ds`.
 
+### Node-level routing hint (`route_keywords`)
+
+The model-parameter area of an LLM node gains a `route_keywords` string parameter
+(set by the app developer in the node; end users can't touch it):
+
+- Its value is merged into the text used for keyword matching for that node, so a
+  node can be pinned to a target **without polluting the prompt** sent to the model.
+- It is **never forwarded upstream** (the payload whitelist doesn't contain it).
+- Only keywords already defined in a `pN_models` line can hit it, and rule priority
+  stays as-is (declaration order, first hit wins). An unknown word simply does nothing.
+- Dify model parameters are static node settings — workflow variables cannot be
+  referenced from them. For per-request dynamic routing, emit the routing word into
+  the prompt (e.g. from a classifier node): prompt text is matched the same way.
+
 ### Unknown-content policy
 
 Requests containing content that can't be keyword-checked (images on a vision-disabled
@@ -193,7 +207,7 @@ routed-model/
 Package with the Dify plugin CLI:
 
 ```sh
-dify plugin package ./routed-model -o routed_model-0.2.10.difypkg
+dify plugin package ./routed-model -o routed_model-0.2.11.difypkg
 ```
 
 Runtime requires the plugin daemon to install `requirements.txt` at add-time
