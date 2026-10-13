@@ -103,24 +103,36 @@ model_credential_schema:
       label:
         en_US: "P2 · Display name"
         zh_Hans: ② 提供商 · 名称
+      placeholder:
+        en_US: "e.g. private-gateway"
+        zh_Hans: "例如 private-gateway"
     - variable: p2_base_url
       type: text-input
       required: false
       label:
         en_US: "P2 · Base URL"
         zh_Hans: ② 提供商 · Base URL
+      placeholder:
+        en_US: "https://llm.internal.example/v1"
+        zh_Hans: "https://llm.internal.example/v1"
     - variable: p2_key
       type: secret-input
       required: false
       label:
         en_US: "P2 · API key"
         zh_Hans: ② 提供商 · API Key
+      placeholder:
+        en_US: "Empty for no auth (local gateway)"
+        zh_Hans: 留空 = 无鉴权（本地网关）
     - variable: p2_models
       type: text-input
       required: false
       label:
         en_US: "P2 · Models: keywords"
         zh_Hans: ② 提供商 · 模型与关键词
+      placeholder:
+        en_US: "local=qwen-plus: legal,compliance; deepseek-r1"
+        zh_Hans: "local=qwen-plus: 合规,审计; deepseek-r1"
       help:
         en_US: Same syntax as P1.
         zh_Hans: 语法同 ① 提供商。
@@ -132,24 +144,36 @@ model_credential_schema:
       label:
         en_US: "P3 · Display name"
         zh_Hans: ③ 提供商 · 名称
+      placeholder:
+        en_US: "e.g. moonshot"
+        zh_Hans: "例如 moonshot"
     - variable: p3_base_url
       type: text-input
       required: false
       label:
         en_US: "P3 · Base URL"
         zh_Hans: ③ 提供商 · Base URL
+      placeholder:
+        en_US: "https://api.example.com/v1"
+        zh_Hans: "https://api.example.com/v1"
     - variable: p3_key
       type: secret-input
       required: false
       label:
         en_US: "P3 · API key"
         zh_Hans: ③ 提供商 · API Key
+      placeholder:
+        en_US: "Empty for no auth (local gateway)"
+        zh_Hans: 留空 = 无鉴权（本地网关）
     - variable: p3_models
       type: text-input
       required: false
       label:
         en_US: "P3 · Models: keywords"
         zh_Hans: ③ 提供商 · 模型与关键词
+      placeholder:
+        en_US: "kimi-k2: math,reasoning; vl=gpt-4o"
+        zh_Hans: "kimi-k2: 数学,推理; vl=gpt-4o"
       help:
         en_US: Same syntax as P1.
         zh_Hans: 语法同 ① 提供商。
@@ -161,24 +185,36 @@ model_credential_schema:
       label:
         en_US: "P4 · Display name"
         zh_Hans: ④ 提供商 · 名称
+      placeholder:
+        en_US: "e.g. openai-compatible"
+        zh_Hans: "例如 openai-compatible"
     - variable: p4_base_url
       type: text-input
       required: false
       label:
         en_US: "P4 · Base URL"
         zh_Hans: ④ 提供商 · Base URL
+      placeholder:
+        en_US: "https://gateway.example.com/v1"
+        zh_Hans: "https://gateway.example.com/v1"
     - variable: p4_key
       type: secret-input
       required: false
       label:
         en_US: "P4 · API key"
         zh_Hans: ④ 提供商 · API Key
+      placeholder:
+        en_US: "Empty for no auth (local gateway)"
+        zh_Hans: 留空 = 无鉴权（本地网关）
     - variable: p4_models
       type: text-input
       required: false
       label:
         en_US: "P4 · Models: keywords"
         zh_Hans: ④ 提供商 · 模型与关键词
+      placeholder:
+        en_US: "gpt-4o: 架构,设计; backup=glm-4"
+        zh_Hans: "gpt-4o: 架构,设计; backup=glm-4"
       help:
         en_US: Same syntax as P1.
         zh_Hans: 语法同 ① 提供商。
@@ -207,8 +243,24 @@ model_credential_schema:
         en_US: "Routing · Policy for non-checkable content"
         zh_Hans: 路由 · 未知内容策略
       help:
-        en_US: default_route keeps normal matching; reject fails the request explicitly; fixed_target always goes to the route name below.
-        zh_Hans: 照常路由 = 继续走关键词与兜底；拒绝请求 = 显式报错；固定目标 = 无条件走下一字段的路由名。
+        en_US: >-
+          Applies ONLY when a request contains segments that cannot be keyword-checked
+          (images, audio, files); for pure-text requests all three options behave
+          identically. "Keep normal routing" = ignore those segments, the remaining
+          text is matched as usual (rule hit wins, otherwise fallback). "Force a fixed
+          target" = keywords no longer matter: as soon as ONE un-checkable segment
+          exists the request goes to the route name below — the fixed target outranks
+          keyword matching, so use it to funnel all attachment traffic into one
+          capable target (e.g. a vision model). "Reject" = fail the request with an
+          explicit error, nothing is sent upstream. With the debug log on, reason=
+          shows which path was taken: rule:<id> / default / unknown_fixed_target.
+        zh_Hans: >-
+          仅当请求中出现无法按文本检查的内容段（图片、音频、文件等）时才生效；纯文本请求下三种设置行为完全一致。
+          照常路由 = 忽略这些段，其余文本照常匹配关键词（命中走该规则，未命中走兜底）；
+          固定目标 = 不再看关键词，只要含一个不可检段就无条件走下一字段指定的路由名——固定目标优先于关键词匹配，
+          适合把带附件的请求统一收口到一个能处理的目标（如多模态模型）；
+          拒绝请求 = 显式报错，不发往任何上游。开启调试日志后可用 reason= 区分走了哪条路径：
+          rule:<id> / default / unknown_fixed_target。
       options:
         - value: default_route
           label:
@@ -235,8 +287,11 @@ model_credential_schema:
         en_US: "e.g. qwen-plus"
         zh_Hans: "例如 qwen-plus"
       help:
-        en_US: Only shown/used when the policy above is set to fixed_target.
-        zh_Hans: 仅当上方“未知内容策略”选择固定目标时显示并生效。
+        en_US: >-
+          Shown and used only when the policy above is "Force a fixed target": any
+          request containing at least one un-checkable segment is routed here
+          regardless of keyword hits. Pure-text requests never use this field.
+        zh_Hans: 仅当上方“未知内容策略”选择固定目标时显示并生效：请求只要含任一不可检内容段（图片、音频、文件等）就无条件走到这里填的路由名，不看关键词；纯文本请求永远不会用到此项。
     - variable: connectivity_check
       type: select
       required: false

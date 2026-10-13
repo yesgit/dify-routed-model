@@ -85,9 +85,15 @@ model, audio, files…) are counted. `uncheck_policy` decides:
 
 | policy | behavior |
 | --- | --- |
-| `default_route` (default) | continue normal matching |
+| `default_route` (default) | ignore those segments; the remaining text still matches keywords normally |
 | `reject` | fail the request with an explicit error |
-| `fixed_target` | always route to the route-name set in `uncheck_target` |
+| `fixed_target` | always route to the route-name set in `uncheck_target`, bypassing keyword matching |
+
+The policy only comes into play when un-checkable segments actually exist —
+**pure-text requests behave identically under all three options**, and
+`fixed_target` outranks keyword matching (attachment traffic always lands on
+that target). With `debug_log: routing` the log's `reason=` shows which path
+was taken: `rule:<id>` / `default` / `unknown_fixed_target`.
 
 A target that genuinely cannot receive a content part (e.g. image with
 `vision_support: no_support`) makes the request fail loudly rather than silently
@@ -172,7 +178,7 @@ routed-model/
 Package with the Dify plugin CLI:
 
 ```sh
-dify plugin package ./routed-model -o routed_model-0.2.7.difypkg
+dify plugin package ./routed-model -o routed_model-0.2.8.difypkg
 ```
 
 Runtime requires the plugin daemon to install `requirements.txt` at add-time

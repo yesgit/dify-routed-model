@@ -75,9 +75,14 @@ qwen-plus: 报价,合同,legal ; coder=qwen3-coder-plus: 代码审查,堆栈,ref
 
 | 取值 | 行为 |
 | --- | --- |
-| `default_route`（默认） | 照常走规则与默认目标 |
+| `default_route`（默认） | 忽略这些段，其余文本照常匹配关键词：命中走该规则，未命中走兜底 |
 | `reject` | 显式报错拒绝请求 |
-| `fixed_target` | 无条件固定走 `uncheck_target` 指定的路由名（在关键词匹配之前生效） |
+| `fixed_target` | 只要含任一不可检段就无条件走 `uncheck_target` 指定的路由名（在关键词匹配之前生效） |
+
+该策略**只在请求真的含有不可检内容段时才生效**：纯文本请求下三种设置行为完全一致；
+`fixed_target` 优先于关键词匹配，适合把带附件（图片/音频/文件）的请求统一收口到一个
+能处理的目标。开启 `debug_log` 后可用日志里的 `reason=` 区分走的路径
+（`rule:<id>` / `default` / `unknown_fixed_target`）。
 
 目标实际无法接收的内容段（如 `vision_support: no_support` 时出现图片）会直接报错，
 而不是悄悄丢弃内容。
