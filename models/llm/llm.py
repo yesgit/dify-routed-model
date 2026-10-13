@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import time
 from collections.abc import Generator
-from dataclasses import dataclass
 from decimal import Decimal
+from typing import NamedTuple
 
 from dify_plugin.entities.model.llm import (
     LLMResult,
@@ -48,8 +48,10 @@ for _i in range(1, 5):
 _CREDENTIAL_FIELDS = tuple(sorted(_CACHE_KEYS))
 
 
-@dataclass(frozen=True)
-class Bundle:
+# 注意：本模块由 SDK 通过 spec_from_file_location 加载，exec 时 `models.llm.llm` 可能尚未
+# 注册进 sys.modules；Python 3.12 的 @dataclass 会在字段解析时查询该模块命名空间而直接崩溃
+# （插件启动即挂）。故此处使用 NamedTuple 而非 dataclass，policy.py 等常规导入的模块不受影响。
+class Bundle(NamedTuple):
     policy: Policy
     vision_support: bool
     function_calling_type: str
