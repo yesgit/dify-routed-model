@@ -32,7 +32,8 @@ prompt_messages / tools / model_parameters
 2. 最多填 **4 个 provider 槽位**（p1–p4），每个槽位四个字段；再填**默认目标**。
 3. 能力声明（`vision_support`、`function_calling_type: tool_call` 等）按各路由目标中
    **最弱**的配置填写；`context_size` / `max_tokens_to_sample` 填**最小值**。
-4. 保存时会校验配置，并向**每个**模型发送一次最小 `ping` 请求（消耗少量 token）。
+4. 保存时会校验配置；默认向**每个**模型发送一次最小 `ping` 请求（消耗少量 token），
+   可用 `connectivity_check` 放宽为只校验兜底目标或仅做本地配置检查（见字段说明）。
 
 ### provider 槽位
 
@@ -105,6 +106,7 @@ default_target = qwen-plus        （填路由名：别名，或未起别名时�
 | `p1..p4` | 最多 4 个上游 provider（名称/base_url/密钥/模型清单） |
 | `default_target` | 未命中关键词时的路由名（别名或模型名） |
 | `uncheck_policy` / `uncheck_target` | 未知内容处理策略（fixed_target 用的也是路由名） |
+| `connectivity_check` | 保存时校验强度：`ping_all`（默认，逐个 ping）/ `ping_default`（只 ping 兜底目标）/ `parse_only`（不联网，只本地解析）。不影响运行时路由；某目标暂时不可达时可用后两档先把配置存进去 |
 | `vision_support` | 开启后图片段转 `image_url`（base64 data URL 或 http url） |
 | `function_calling_type` | `tool_call` 将 Dify 工具定义按 OpenAI `tools` 透传（Agent 场景推荐）；其余丢弃工具定义 |
 | `stream_function_calling` | 声明上游支持流式工具调用（增量参数会被累积后输出） |

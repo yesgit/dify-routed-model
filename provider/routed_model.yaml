@@ -237,7 +237,29 @@ model_credential_schema:
       help:
         en_US: Only shown/used when the policy above is set to fixed_target.
         zh_Hans: 仅当上方“未知内容策略”选择固定目标时显示并生效。
-
+    - variable: connectivity_check
+      type: select
+      required: false
+      default: ping_all
+      label:
+        en_US: "Routing · Save-time connectivity check"
+        zh_Hans: 路由 · 保存时连通性校验
+      help:
+        en_US: ping all = every target must answer a minimal ping at save time (a few tokens each); ping default = only the fallback target is checked; parse only = no network check at save, unreachable targets surface on first routed request. Does not affect runtime routing.
+        zh_Hans: 全部目标 = 保存时向每个目标发一次最小 ping（各消耗几 token），任一失败拒绝保存；仅兜底目标 = 只校验兜底目标；仅配置检查 = 不联网，不可达目标在首次被路由到时才报错。该选项不影响运行时路由行为。
+      options:
+        - value: ping_all
+          label:
+            en_US: Ping all targets
+            zh_Hans: 全部目标
+        - value: ping_default
+          label:
+            en_US: Only the fallback target
+            zh_Hans: 仅兜底目标
+        - value: parse_only
+          label:
+            en_US: Parse config only (no network)
+            zh_Hans: 仅配置检查
     # ============ 能力声明（按所有路由目标中最弱的一方填写） ============
     - variable: vision_support
       type: select

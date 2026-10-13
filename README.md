@@ -93,6 +93,19 @@ A target that genuinely cannot receive a content part (e.g. image with
 `vision_support: no_support`) makes the request fail loudly rather than silently
 drop the part.
 
+### Save-time connectivity check (`connectivity_check`)
+
+How hard the plugin verifies the form when you press **Save**:
+
+| level | behavior |
+| --- | --- |
+| `ping_all` (default) | parse config, then send one minimal `ping` to **every** target; any failure blocks the save |
+| `ping_default` | parse config, ping **only** the fallback target; unreachable non-default targets surface on their first routed request |
+| `parse_only` | local config parse only — **no network**; use when a target is temporarily down but the config must be saved |
+
+This option only affects the save-time check; runtime routing and the no-silent-failover
+behavior are unchanged.
+
 ### Capability flags
 
 Declare `vision_support` / `function_calling_type` / `structured_output_support` etc.
@@ -116,8 +129,9 @@ p2_models    = local=qwen-plus              (same upstream model as p1, differen
 default_target = qwen-plus                  (route name; here p1's model without alias)
 ```
 
-`A 1.8.1 note:` saving the model sends one minimal `ping` chat request to **every**
-configured model (a few tokens per model) as a connectivity check.
+`Note:` by default saving the model sends one minimal `ping` chat request to **every**
+configured model (a few tokens per model) as a connectivity check — see
+`connectivity_check` above to loosen this.
 
 ## Errors
 
@@ -146,7 +160,7 @@ routed-model/
 Package with the Dify plugin CLI:
 
 ```sh
-dify plugin package ./routed-model -o routed_model-0.2.4.difypkg
+dify plugin package ./routed-model -o routed_model-0.2.5.difypkg
 ```
 
 Runtime requires the plugin daemon to install `requirements.txt` at add-time
