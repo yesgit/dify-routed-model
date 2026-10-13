@@ -44,8 +44,8 @@ model_credential_schema:
         - variable: __model_type
           value: llm
       label:
-        en_US: Completion mode
-        zh_Hans: 推理模式
+        en_US: "Basics · Completion mode"
+        zh_Hans: 基础 · 推理模式
       options:
         - value: chat
           label:
@@ -188,8 +188,8 @@ model_credential_schema:
       type: text-input
       required: true
       label:
-        en_US: Fallback target (route name when no keyword hits)
-        zh_Hans: 兜底目标 · 路由名
+        en_US: "Routing · Fallback target (route name when no keyword hits)"
+        zh_Hans: 路由 · 兜底目标（路由名）
       placeholder:
         en_US: "e.g. qwen-plus"
         zh_Hans: "例如 qwen-plus"
@@ -204,8 +204,8 @@ model_credential_schema:
         - variable: __model_type
           value: llm
       label:
-        en_US: When the request contains non-text-checkable content
-        zh_Hans: 未知内容策略
+        en_US: "Routing · Policy for non-checkable content"
+        zh_Hans: 路由 · 未知内容策略
       help:
         en_US: default_route keeps normal matching; reject fails the request explicitly; fixed_target always goes to the route name below.
         zh_Hans: 照常路由 = 继续走关键词与兜底；拒绝请求 = 显式报错；固定目标 = 无条件走下一字段的路由名。
@@ -225,15 +225,18 @@ model_credential_schema:
     - variable: uncheck_target
       type: text-input
       required: false
+      show_on:
+        - variable: uncheck_policy
+          value: fixed_target
       label:
-        en_US: Fixed target route name (policy = fixed_target)
-        zh_Hans: 固定目标 · 路由名
+        en_US: "Routing · Fixed target route name"
+        zh_Hans: 路由 · 固定目标（路由名）
       placeholder:
         en_US: "e.g. qwen-plus"
         zh_Hans: "例如 qwen-plus"
       help:
-        en_US: Only used when the policy above is fixed_target.
-        zh_Hans: 仅当上方策略选择“固定目标”时生效。
+        en_US: Only shown/used when the policy above is set to fixed_target.
+        zh_Hans: 仅当上方“未知内容策略”选择固定目标时显示并生效。
 
     # ============ 能力声明（按所有路由目标中最弱的一方填写） ============
     - variable: vision_support
@@ -244,8 +247,8 @@ model_credential_schema:
         - variable: __model_type
           value: llm
       label:
-        en_US: Vision support
-        zh_Hans: 视觉支持
+        en_US: "Capabilities · Vision"
+        zh_Hans: 能力 · 视觉支持
       help:
         en_US: Declare support only if EVERY routed target accepts images.
         zh_Hans: 仅当所有路由目标都支持图片时才声明支持。
@@ -266,8 +269,8 @@ model_credential_schema:
         - variable: __model_type
           value: llm
       label:
-        en_US: Function calling
-        zh_Hans: 函数调用
+        en_US: "Capabilities · Function calling"
+        zh_Hans: 能力 · 函数调用
       help:
         en_US: tool_call forwards Dify tool definitions as OpenAI-style tools (recommended for agents).
         zh_Hans: “工具调用”按 OpenAI tools 透传 Dify 工具定义（Agent 场景推荐）。
@@ -292,8 +295,8 @@ model_credential_schema:
         - variable: __model_type
           value: llm
       label:
-        en_US: Streaming function calling
-        zh_Hans: 流式函数调用
+        en_US: "Capabilities · Streaming function calling"
+        zh_Hans: 能力 · 流式函数调用
       options:
         - value: supported
           label:
@@ -311,8 +314,8 @@ model_credential_schema:
         - variable: __model_type
           value: llm
       label:
-        en_US: Agent thought
-        zh_Hans: 智能体思考
+        en_US: "Capabilities · Agent thought"
+        zh_Hans: 能力 · 智能体思考
       options:
         - value: supported
           label:
@@ -330,8 +333,8 @@ model_credential_schema:
         - variable: __model_type
           value: llm
       label:
-        en_US: Structured output
-        zh_Hans: 结构化输出
+        en_US: "Capabilities · Structured output"
+        zh_Hans: 能力 · 结构化输出
       options:
         - value: supported
           label:
@@ -351,8 +354,8 @@ model_credential_schema:
         - variable: __model_type
           value: llm
       label:
-        en_US: Model context size
-        zh_Hans: 上下文长度
+        en_US: "Capacity · Context size"
+        zh_Hans: 容量 · 上下文长度
       placeholder:
         en_US: smallest among routed targets
         zh_Hans: 填各路由目标中最小值
@@ -364,8 +367,8 @@ model_credential_schema:
         - variable: __model_type
           value: llm
       label:
-        en_US: Maximum output tokens
-        zh_Hans: 最大输出 token
+        en_US: "Capacity · Maximum output tokens"
+        zh_Hans: 容量 · 最大输出 token
       placeholder:
         en_US: smallest among routed targets
         zh_Hans: 填各路由目标中最小值
@@ -374,12 +377,12 @@ model_credential_schema:
       required: false
       default: "10"
       label:
-        en_US: Connect timeout (s)
-        zh_Hans: 连接超时（秒）
+        en_US: "Timeout · Connect (s)"
+        zh_Hans: 超时 · 连接（秒）
     - variable: read_timeout
       type: text-input
       required: false
       default: "120"
       label:
-        en_US: Read timeout (s)
-        zh_Hans: 读取超时（秒）
+        en_US: "Timeout · Read (s)"
+        zh_Hans: 超时 · 读取（秒）

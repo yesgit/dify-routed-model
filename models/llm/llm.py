@@ -14,6 +14,16 @@ from collections.abc import Generator
 from decimal import Decimal
 from typing import NamedTuple
 
+from dify_plugin.entities import I18nObject
+from dify_plugin.entities.model import (
+    AIModelEntity,
+    FetchFrom,
+    ModelFeature,
+    ModelPropertyKey,
+    ModelType,
+    ParameterRule,
+    ParameterType,
+)
 from dify_plugin.entities.model.llm import (
     LLMResult,
     LLMResultChunk,
@@ -125,6 +135,78 @@ class RoutedModelLargeLanguageModel(LargeLanguageModel):
             raise CredentialsValidateFailedError(f"路由配置无效：{e}") from None
         except ConnectivityError as e:
             raise CredentialsValidateFailedError(str(e)) from None
+
+    def get_customizable_model_schema(self, model: str, credentials: dict) -> AIModelEntity:
+        """为已保存的自定义模型实例生成 schema。
+
+        customizable-model 提供商必须实现本方法：core 在模型列表/展示时会通过
+        dispatch/model/schema 取每个实例的 schema，SDK 基类返回 None 时 core 会
+        直接丢弃该模型（表现为"提供商下 0 个模型"）。注意：任何情况下都不能返回
+        None，字段解析失败一律退化为默认值。凭据只用于推导能力声明，绝不外传。
+        """
+        creds = credentials or {}
+
+        def _int(name: str, default: int) -> int:
+            try:
+                return int(str(creds.get(name) or "").strip() or default)
+            except ValueError:
+                return default
+
+        features: list[ModelFeature] = []
+        fct = (creds.get("function_calling_type") or "no_call").strip()
+        if fct == "function_call":
+            features.append(ModelFeature.TOOL_CALL)
+        elif fct == "tool_call":
+            features.append(ModelFeature.MULTI_TOOL_CALL)
+        if (creds.get("stream_function_calling") or "").strip() == "supported":
+            features.append(ModelFeature.STREAM_TOOL_CALL)
+        if _flag(creds, "vision_support", "support"):
+            features.append(ModelFeature.VISION)
+        if (creds.get("agent_thought_support") or "").strip() == "supported":
+            features.append(ModelFeature.AGENT_THOUGHT)
+        if _flag(creds, "structured_output_support", "supported"):
+            features.append(ModelFeature.STRUCTURED_OUTPUT)
+
+        max_out = _int("max_tokens_to_sample", 4096)
+        return AIModelEntity(
+            model=model,
+            label=I18nObject(en_us=model, zh_hans=model),
+            model_type=ModelType.LLM,
+            fetch_from=FetchFrom.CUSTOMIZABLE_MODEL,
+            features=features,
+            model_properties={
+                ModelPropertyKey.CONTEXT_SIZE: _int("context_size", 4096),
+                ModelPropertyKey.MODE: (creds.get("mode") or "chat").strip() or "chat",
+            },
+            parameter_rules=[
+                ParameterRule(
+                    name="temperature",
+                    label=I18nObject(en_us="Temperature", zh_hans="温度"),
+                    type=ParameterType.FLOAT,
+                    default=0.7,
+                    min=0.0,
+                    max=2.0,
+                    precision=1,
+                ),
+                ParameterRule(
+                    name="top_p",
+                    label=I18nObject(en_us="Top P", zh_hans="Top P"),
+                    type=ParameterType.FLOAT,
+                    default=1.0,
+                    min=0.0,
+                    max=1.0,
+                    precision=1,
+                ),
+                ParameterRule(
+                    name="max_tokens",
+                    label=I18nObject(en_us="Max tokens", zh_hans="最大输出 token"),
+                    type=ParameterType.INT,
+                    default=max_out,
+                    min=1,
+                    max=max_out,
+                ),
+            ],
+        )
 
     @property
     def _invoke_error_mapping(self) -> dict[type[InvokeError], list[type[Exception]]]:
