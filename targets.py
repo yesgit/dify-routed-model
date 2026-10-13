@@ -15,6 +15,7 @@ PARAM_PASSTHROUGH = (
     "seed",
     "logit_bias",
     "max_tokens",
+    "reasoning_effort",
     "max_completion_tokens",
 )
 
@@ -119,8 +120,14 @@ def build_payload(
 ) -> dict:
     payload = {"model": upstream_model, "messages": messages}
     for key in PARAM_PASSTHROUGH:
-        if model_parameters and model_parameters.get(key) is not None:
-            payload[key] = model_parameters[key]
+        value = (model_parameters or {}).get(key)
+        if value is not None and value != "":
+            payload[key] = value
+    # 思考模式：只有明确打开才发 enable_thinking=true；关闭/未设置不发，避免
+    # 严格校验未知字段的上游收到多余参数，也让不支持思考的目标走自身默认。
+    thinking = (model_parameters or {}).get("enable_thinking")
+    if thinking is True or (isinstance(thinking, str) and thinking.strip().lower() == "true"):
+        payload["enable_thinking"] = True
     if structured_output_support and model_parameters and model_parameters.get("response_format") is not None:
         payload["response_format"] = model_parameters["response_format"]
     if stop:

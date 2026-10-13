@@ -272,14 +272,48 @@ class RoutedModelLargeLanguageModel(LargeLanguageModel):
                     help=I18nObject(
                         en_us="Appends extra words to THIS node's routing text; never sent to the "
                               "upstream model. Only keywords already defined in the provider config "
-                              "can hit; rule priority (declaration order) is unchanged.",
+                              "can hit; rule priority (declaration order) is unchanged. "
+                              "Static value only — Dify does NOT resolve {{#variable#}} references "
+                              "inside model parameters (they arrive literally). For per-request "
+                              "routing, branch to separate nodes or put the keyword in the prompt.",
                         zh_hans="为本节点的路由匹配文本追加关键词，不会发给上游模型；"
                                 "只有提供商配置里已定义的关键词才能命中；"
-                                "规则优先级不变（按声明顺序先命中先得）。",
+                                "规则优先级不变（按声明顺序先命中先得）。"
+                                "仅支持静态值：Dify 不会解析模型参数里的 {{#变量#}} 引用"
+                                "（会按字面传入）。需要按请求动态路由时，用条件分支挂不同节点，"
+                                "或把路由词写进提示词。",
                     ),
                     type=ParameterType.STRING,
                     required=False,
                     default="",
+                ),
+                # 思考模式：打开才向下游发 enable_thinking=true；关闭 = 不发字段（上游默认）
+                ParameterRule(
+                    name="enable_thinking",
+                    label=I18nObject(en_us="Thinking mode", zh_hans="思考模式"),
+                    help=I18nObject(
+                        en_us="ON sends enable_thinking=true to the routed upstream (reasoning-capable "
+                              "models; many only support it while streaming). OFF sends nothing — "
+                              "the upstream default applies.",
+                        zh_hans="打开 = 向被路由的上游发送 enable_thinking=true（仅对支持思考的模型有"
+                                "意义，多数上游仅流式支持）；关闭 = 不发该字段，沿用上游默认。",
+                    ),
+                    type=ParameterType.BOOLEAN,
+                    required=False,
+                    default=False,
+                ),
+                ParameterRule(
+                    name="reasoning_effort",
+                    label=I18nObject(en_us="Reasoning effort", zh_hans="推理强度"),
+                    help=I18nObject(
+                        en_us="Sent as OpenAI-style reasoning_effort only when chosen (low/medium/high).",
+                        zh_hans="仅在选择后以 OpenAI 风格 reasoning_effort 发送（low/medium/high）。",
+                    ),
+                    type=ParameterType.STRING,
+                    required=False,
+                    min=None,
+                    max=None,
+                    options=["low", "medium", "high"],
                 ),
             ],
         )

@@ -88,9 +88,26 @@ The model-parameter area of an LLM node gains a `route_keywords` string paramete
 - It is **never forwarded upstream** (the payload whitelist doesn't contain it).
 - Only keywords already defined in a `pN_models` line can hit it, and rule priority
   stays as-is (declaration order, first hit wins). An unknown word simply does nothing.
-- Dify model parameters are static node settings — workflow variables cannot be
-  referenced from them. For per-request dynamic routing, emit the routing word into
-  the prompt (e.g. from a classifier node): prompt text is matched the same way.
+- The value is **static per node**. In workflow LLM nodes the field shows a variable
+  insert button, but Dify does **not** resolve `{{#variable#}}` references inside model
+  parameters — the literal text would arrive and never match (upstream issue #14351,
+  not planned). Don't insert variables here.
+- For per-request dynamic routing: (a) branch (if/else, question classifier) to
+  separate LLM nodes, each pinning its own `route_keywords`; or (b) have an upstream
+  node emit the routing word into the prompt text — prompt content is matched the
+  same way, and this is the fully dynamic channel.
+
+### Thinking / reasoning parameters
+
+- `enable_thinking` (switch, OFF by default): ON appends `"enable_thinking": true` to
+  the forwarded payload; OFF sends **nothing**, so targets that don't understand the
+  field never see it. Most upstreams honor it only while streaming.
+- `reasoning_effort` (select: low / medium / high): forwarded as OpenAI-style
+  `reasoning_effort` only when chosen.
+- The "Response Format / JSON Schema" controls are **not** a parameter rule: set the
+  `structured_output_support` capability to `supported` and Dify shows its
+  structured-output panel on the node; the resulting `response_format` is forwarded
+  when supported.
 
 ### Unknown-content policy
 
@@ -207,7 +224,7 @@ routed-model/
 Package with the Dify plugin CLI:
 
 ```sh
-dify plugin package ./routed-model -o routed_model-0.2.11.difypkg
+dify plugin package ./routed-model -o routed_model-0.2.12.difypkg
 ```
 
 Runtime requires the plugin daemon to install `requirements.txt` at add-time
