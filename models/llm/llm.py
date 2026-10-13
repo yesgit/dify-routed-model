@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Generator
 from decimal import Decimal
@@ -49,13 +50,18 @@ _BUNDLE_CACHE_LIMIT = 8
 _CACHE_KEYS = [
     "default_target", "uncheck_policy", "uncheck_target",
     "vision_support", "function_calling_type", "structured_output_support",
-    "connect_timeout", "read_timeout",
+    "connect_timeout", "read_timeout", "debug_log",
 ]
 for _i in range(1, 5):
     for _f in ("name", "base_url", "key", "models"):
         _CACHE_KEYS.append(f"p{_i}_{_f}")
 
 _CREDENTIAL_FIELDS = tuple(sorted(_CACHE_KEYS))
+
+# 决策调试日志：写到插件 stderr（即 plugin daemon 容器日志，仅管理员可见）。
+# 只记录决策元数据：逻辑模型名/路由名/命中原因/流式标志/条数与字符数。
+# 绝不记录 prompt 内容、密钥、base_url——见项目隐私约束。
+_LOG = logging.getLogger("routed_model")
 
 
 # 注意：本模块由 SDK 通过 spec_from_file_location 加载，exec 时 `models.llm.llm` 可能尚未
@@ -68,6 +74,7 @@ class Bundle(NamedTuple):
     structured_output_support: bool
     connect_s: int
     read_s: int
+    debug_routing: bool
 
 
 def _flag(credentials: dict, name: str, value: str) -> bool:
@@ -232,6 +239,7 @@ class RoutedModelLargeLanguageModel(LargeLanguageModel):
             structured_output_support=_flag(creds, "structured_output_support", "supported"),
             connect_s=connect_s,
             read_s=read_s,
+            debug_routing=_flag(creds, "debug_log", "routing"),
         )
         if len(self._bundles) >= _BUNDLE_CACHE_LIMIT:
             self._bundles.pop(next(iter(self._bundles)))
@@ -263,6 +271,13 @@ class RoutedModelLargeLanguageModel(LargeLanguageModel):
         except UnknownContentRejected as e:
             raise ValueError(str(e)) from None
         target = decision.target
+        if bundle.debug_routing:
+            # 仅元数据：无 prompt 内容、无密钥、无 URL（隐私约束）
+            _LOG.info(
+                "[routed_model] route model=%s target=%s reason=%s stream=%s msgs=%d chars=%d unknown=%d",
+                model, target.id, decision.reason, stream,
+                len(prompt_messages), len(text), unknown_parts,
+            )
 
         messages, dropped = build_messages(prompt_messages, vision_support=bundle.vision_support)
         if dropped:
@@ -287,6 +302,8 @@ class RoutedModelLargeLanguageModel(LargeLanguageModel):
                 timeout=(bundle.connect_s, bundle.read_s), stream=stream,
             )
         except UpstreamError as e:
+            if bundle.debug_routing:
+                _LOG.warning("[routed_model] route FAILED target=%s stream=%s", target.id, stream)
             raise ValueError(f"路由到目标 {target.id} 失败（不做失败转移）：{e}") from None
 
         start = time.time()

@@ -107,6 +107,7 @@ default_target = qwen-plus        （填路由名：别名，或未起别名时�
 | `default_target` | 未命中关键词时的路由名（别名或模型名） |
 | `uncheck_policy` / `uncheck_target` | 未知内容处理策略（fixed_target 用的也是路由名） |
 | `connectivity_check` | 保存时校验强度：`ping_all`（默认，逐个 ping）/ `ping_default`（只 ping 兜底目标）/ `parse_only`（不联网，只本地解析）。不影响运行时路由；某目标暂时不可达时可用后两档先把配置存进去 |
+| `debug_log` | 决策调试日志：选"记录决策"后每次请求向插件 daemon 日志（docker logs）写一行元数据（逻辑模型/路由名/命中原因/流式/条数字符数），绝不含 prompt、密钥、URL；排障后建议关回"关闭" |
 | `vision_support` | 开启后图片段转 `image_url`（base64 data URL 或 http url） |
 | `function_calling_type` | `tool_call` 将 Dify 工具定义按 OpenAI `tools` 透传（Agent 场景推荐）；其余丢弃工具定义 |
 | `stream_function_calling` | 声明上游支持流式工具调用（增量参数会被累积后输出） |

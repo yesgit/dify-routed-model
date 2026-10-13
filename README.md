@@ -106,6 +106,18 @@ How hard the plugin verifies the form when you press **Save**:
 This option only affects the save-time check; runtime routing and the no-silent-failover
 behavior are unchanged.
 
+### Decision debug log (`debug_log`)
+
+Set to `routing` to make every request write **one metadata line** to the plugin
+daemon log (`docker logs` of the plugin-daemon container — admins only):
+
+```
+[routed_model] route model=routed-chat target=coder reason=rule:coder stream=True msgs=6 chars=1840 unknown=0
+```
+
+Route names only — never prompt content, never keys, never base URLs. Turn back to
+`off` after debugging.
+
 ### Capability flags
 
 Declare `vision_support` / `function_calling_type` / `structured_output_support` etc.
@@ -160,7 +172,7 @@ routed-model/
 Package with the Dify plugin CLI:
 
 ```sh
-dify plugin package ./routed-model -o routed_model-0.2.5.difypkg
+dify plugin package ./routed-model -o routed_model-0.2.6.difypkg
 ```
 
 Runtime requires the plugin daemon to install `requirements.txt` at add-time

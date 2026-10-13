@@ -260,6 +260,29 @@ model_credential_schema:
           label:
             en_US: Parse config only (no network)
             zh_Hans: 仅配置检查
+    - variable: debug_log
+      type: select
+      required: false
+      default: "off"
+      label:
+        en_US: "Routing · Decision debug log"
+        zh_Hans: 路由 · 决策调试日志
+      help:
+        en_US: >-
+          With "record decisions", each request writes one line to the plugin daemon log
+          (docker logs / plugin container, admin-only): logical model, route name, hit
+          reason, stream flag, message and char counts — never prompt content, keys or
+          URLs. Turn off after debugging.
+        zh_Hans: 选“记录决策”后，每次请求向插件 daemon 日志（docker logs，仅管理员可见）写一行决策元数据：逻辑模型名、路由名、命中原因、是否流式、消息条数与字符数——绝不含 prompt 内容、密钥与 URL。排障完建议关回“关闭”。
+      options:
+        - value: "off"
+          label:
+            en_US: "Off"
+            zh_Hans: 关闭
+        - value: routing
+          label:
+            en_US: Record decisions (admin logs)
+            zh_Hans: 记录决策
     # ============ 能力声明（按所有路由目标中最弱的一方填写） ============
     - variable: vision_support
       type: select
