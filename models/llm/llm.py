@@ -245,6 +245,25 @@ class RoutedModelLargeLanguageModel(LargeLanguageModel):
                     min=1,
                     max=max_out,
                 ),
+                # OpenAI 兼容标准参数对；targets.PARAM_PASSTHROUGH 已含转发白名单
+                ParameterRule(
+                    name="presence_penalty",
+                    label=I18nObject(en_us="Presence penalty", zh_hans="存在惩罚"),
+                    type=ParameterType.FLOAT,
+                    default=0.0,
+                    min=-2.0,
+                    max=2.0,
+                    precision=1,
+                ),
+                ParameterRule(
+                    name="frequency_penalty",
+                    label=I18nObject(en_us="Frequency penalty", zh_hans="频率惩罚"),
+                    type=ParameterType.FLOAT,
+                    default=0.0,
+                    min=-2.0,
+                    max=2.0,
+                    precision=1,
+                ),
             ],
         )
 
