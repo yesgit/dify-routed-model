@@ -172,7 +172,7 @@ routed-model/
 Package with the Dify plugin CLI:
 
 ```sh
-dify plugin package ./routed-model -o routed_model-0.2.6.difypkg
+dify plugin package ./routed-model -o routed_model-0.2.7.difypkg
 ```
 
 Runtime requires the plugin daemon to install `requirements.txt` at add-time

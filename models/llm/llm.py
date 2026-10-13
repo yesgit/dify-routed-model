@@ -9,7 +9,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import sys
 import time
 from collections.abc import Generator
 from decimal import Decimal
@@ -58,10 +60,41 @@ for _i in range(1, 5):
 
 _CREDENTIAL_FIELDS = tuple(sorted(_CACHE_KEYS))
 
-# 决策调试日志：写到插件 stderr（即 plugin daemon 容器日志，仅管理员可见）。
+# 决策调试日志：写到插件 stdout（plugin daemon 会将其转发进容器日志，仅管理员可见）。
 # 只记录决策元数据：逻辑模型名/路由名/命中原因/流式标志/条数与字符数。
 # 绝不记录 prompt 内容、密钥、base_url——见项目隐私约束。
-_LOG = logging.getLogger("routed_model")
+#
+# 必须自行接线：插件进程 root logger 没有 handler，且 SDK 只给 dify_plugin.plugin
+# 这个 logger 挂了 stdout handler；裸 getLogger("routed_model").info() 的记录会被
+# 直接丢弃（0.2.6 的教训——"看不到日志"）。这里复刻 SDK 同款 JSON 行格式。
+class _RouteLogFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        return json.dumps(
+            {
+                "event": "log",
+                "data": {
+                    "level": record.levelname,
+                    "message": record.getMessage(),
+                    "timestamp": record.created,
+                },
+            },
+            ensure_ascii=False,
+        )
+
+
+def _make_route_logger() -> logging.Logger:
+    log = logging.getLogger("routed_model")
+    if not log.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(_RouteLogFormatter())
+        log.addHandler(handler)
+        log.setLevel(logging.INFO)
+        log.propagate = False  # 防重复输出（root 上若被他人挂了 handler）
+    return log
+
+
+_LOG = _make_route_logger()
 
 
 # 注意：本模块由 SDK 通过 spec_from_file_location 加载，exec 时 `models.llm.llm` 可能尚未
