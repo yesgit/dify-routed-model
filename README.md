@@ -93,9 +93,46 @@ The model-parameter area of an LLM node gains a `route_keywords` string paramete
   parameters — the literal text would arrive and never match (upstream issue #14351,
   not planned). Don't insert variables here.
 - For per-request dynamic routing: (a) branch (if/else, question classifier) to
-  separate LLM nodes, each pinning its own `route_keywords`; or (b) have an upstream
-  node emit the routing word into the prompt text — prompt content is matched the
-  same way, and this is the fully dynamic channel.
+  separate LLM nodes, each pinning its own `route_keywords`; or (b) use the
+  structured routing marker in the prompt (next section) — the fully dynamic channel.
+
+### Structured routing marker (`[routing:…]`)
+
+Prompt text reaches the router, but writing a bare keyword there also reaches the
+model. This plugin therefore reserves a marker format that is **read for routing
+and stripped before forwarding**:
+
+- Syntax: the word inside `[routing:...]`, or the Chinese keyword form shown below;
+  `routing` is case-insensitive, the colon may be half- or full-width, the word may
+  not contain `]` or a newline, max 64 chars:
+
+  ```
+  [routing:legal]                  # static word
+  [routing:合同]                   # same, Chinese word
+  [routing:{{#question-classifier.category#}}]   # dynamic — workflow engine
+                                                 # renders the variable first
+  ```
+
+  Put the marker alone on the first SYSTEM line for the most predictable behaviour.
+- Routing: the captured word is matched like any keyword (it joins the searchable
+  text as its own segment; the full marker string can also be configured as a
+  keyword in `pN_models`). Priority and first-hit rules are unchanged.
+- Stripping: markers are removed from every text part of the forwarded payload —
+  a line containing only a marker is deleted, inline markers leave the rest of the
+  line intact. The upstream model never sees them. The prompt stored/shown by
+  Dify itself is untouched (the plugin edits only the outbound copy), so console
+  run-logs still show the marker.
+- No privilege gained: the marker only feeds keywords — there is deliberately no
+  `[route:<target-name>]` direct-select form. A user typing `[routing:legal]` into
+  chat has exactly the same effect as typing `legal` bare, i.e. no more than plain
+  keyword routing already allows.
+- Agent / multi-iteration calls: a marker in the system prompt or agent
+  instruction is re-sent on every LLM call, so routing is stable within a turn and
+  across turns. A marker appearing only inside an old user message behaves like
+  any keyword (sticky while within the memory window).
+- Any text shaped like the forms above (`[routing:...]`, or the Chinese-label
+  equivalent) is reserved for this plugin's routing and will be removed from the
+  forwarded prompt before it reaches the model.
 
 ### Thinking / reasoning parameters
 
@@ -224,7 +261,7 @@ routed-model/
 Package with the Dify plugin CLI:
 
 ```sh
-dify plugin package ./routed-model -o routed_model-0.2.12.difypkg
+dify plugin package ./routed-model -o routed_model-0.2.13.difypkg
 ```
 
 Runtime requires the plugin daemon to install `requirements.txt` at add-time

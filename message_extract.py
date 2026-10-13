@@ -9,6 +9,27 @@
 from __future__ import annotations
 
 import json
+import re
+
+# 保留语法：[routing:XX] 或 [路由：XX]（冒号可半角/全角，大小写不敏感）。
+# 应用开发者在提示词里放这个标记（常配合变量引用 {{#节点.输出#}} 由 Dify 渲染），
+# 捕获值作为独立行参与关键词匹配；转发上游前由 targets 剔除，模型看不到。
+# 仅喂关键词、不支持直接指定路由名——最终用户不能自行指定目标。
+MARKER_RE = re.compile(r"\[(?:routing|路由)\s*[:：]\s*([^\]\n]{1,64})\]", re.IGNORECASE)
+
+
+def strip_markers(text: str) -> str:
+    """从将发给上游的文本中剔除路由标记：独占一行的标记整行删除，
+    行内混排的只摘掉标记本身；不改动与标记无关的行。"""
+    if not text or "[" not in text or not MARKER_RE.search(text):
+        return text
+    out = []
+    for line in text.split("\n"):
+        cleaned = MARKER_RE.sub("", line)
+        if cleaned != line and cleaned.strip() == "":
+            continue  # 整行都是标记 → 删除该行
+        out.append(cleaned)
+    return "\n".join(out)
 
 
 def _part_text(part) -> str | None:
@@ -67,5 +88,15 @@ def extract_text(prompt_messages, tools, model_parameters) -> tuple:
     for value in (model_parameters or {}).values():
         if isinstance(value, str):
             chunks.append(value)
+
+    # [routing:XX] 保留语法：捕获值作为独立行参与匹配（与正文隔开，避免跨段误拼），
+    # 标记原文仍在正文 chunk 中，因此把整个 "[routing:XX]" 配成关键词也能命中。
+    marker_words = []
+    for chunk in chunks:
+        for m in MARKER_RE.finditer(chunk or ""):
+            word = m.group(1).strip()
+            if word:
+                marker_words.append(word)
+    chunks.extend(marker_words)
 
     return "\n".join(chunk for chunk in chunks if chunk), unknown

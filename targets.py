@@ -6,6 +6,10 @@ import json
 
 import requests
 
+from message_extract import strip_markers
+
+from message_extract import strip_markers
+
 # 从 Dify model_parameters 透传的参数白名单（其余忽略，避免把未知字段塞给上游）
 PARAM_PASSTHROUGH = (
     "temperature",
@@ -29,13 +33,13 @@ def flatten_content(content, vision_support: bool) -> tuple:
     if content is None:
         return "", 0
     if isinstance(content, str):
-        return content, 0
+        return strip_markers(content), 0
     texts = []
     parts = []
     dropped = 0
     for part in content or []:
         if isinstance(part, str):
-            texts.append(part)
+            texts.append(strip_markers(part))
             continue
         ptype = getattr(part, "type", None)
         ptype = getattr(ptype, "value", ptype)
@@ -43,7 +47,7 @@ def flatten_content(content, vision_support: bool) -> tuple:
             text = getattr(part, "data", None)
             if not isinstance(text, str):
                 text = getattr(part, "text", None)
-            texts.append(text if isinstance(text, str) else "")
+            texts.append(strip_markers(text) if isinstance(text, str) else "")
         elif ptype == "image" and vision_support:
             b64 = getattr(part, "base64_data", "") or ""
             url = getattr(part, "url", "") or ""
