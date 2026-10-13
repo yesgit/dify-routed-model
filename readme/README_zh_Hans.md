@@ -87,6 +87,17 @@ qwen-plus: 报价,合同,legal ; coder=qwen3-coder-plus: 代码审查,堆栈,ref
 目标实际无法接收的内容段（如 `vision_support: no_support` 时出现图片）会直接报错，
 而不是悄悄丢弃内容。
 
+### 生产平台 INSTALL_METHOD 兼容（aws_lambda 等）
+
+部分生产部署（K8s / 插件网关，以 Lambda 风格调起插件）会向插件进程注入
+`INSTALL_METHOD=aws_lambda`；官方 dify-plugin SDK（含 0.10.2 在内的所有发布版本）
+只认 `local|remote|serverless`，插件会在 **import 阶段** 崩溃——保存凭据报的是
+启动错误，与配置内容无关。插件在导入 SDK 前对该变量做规范化：未知取值映射为
+`serverless`（SDK 在插件进程内起 HTTP 服务，监听 `SERVERLESS_HOST:SERVERLESS_PORT`，
+默认 `0.0.0.0:8080`，符合 Lambda 风格调用语义）。若平台实际走 stdio 管道，在部署侧
+设置 `ROUTED_MODEL_INSTALL_METHOD=local` 即可覆盖映射，无需重新打包。
+官方 docker-compose 部署（`local` 或未设置该变量）不受任何影响。
+
 ## 完整示例
 
 ```

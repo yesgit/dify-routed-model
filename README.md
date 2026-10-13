@@ -124,6 +124,20 @@ daemon log (`docker logs` of the plugin-daemon container — admins only):
 Route names only — never prompt content, never keys, never base URLs. Turn back to
 `off` after debugging.
 
+### Serverless / gateway-style production runtimes
+
+Some production deployments launch plugins Lambda-style and inject
+`INSTALL_METHOD=aws_lambda`. The official `dify-plugin` SDK (every released
+version, 0.10.2 included) only accepts `local|remote|serverless`, so the plugin
+process crashes **at import** — saving credentials fails with a startup error
+before any plugin code runs. `main.py` normalizes the variable before importing
+the SDK: unrecognized values map to `serverless` (the SDK then serves HTTP
+inside the plugin process on `SERVERLESS_HOST:SERVERLESS_PORT`, which is what
+lambda-style invocation expects). If your runtime actually pipes stdio, set
+`ROUTED_MODEL_INSTALL_METHOD=local` on the plugin deployment to override — no
+repackaging needed. Standard docker-compose installs (`local` or unset) are
+untouched.
+
 ### Capability flags
 
 Declare `vision_support` / `function_calling_type` / `structured_output_support` etc.
@@ -168,6 +182,7 @@ nothing, phones home nowhere, and logs no prompt or key.
 ```
 routed-model/
 ├── manifest.yaml / main.py / requirements.txt   # dify-plugin==0.10.2, requests
+├── platform_compat.py   # normalize INSTALL_METHOD before importing the SDK (production aws_lambda compat)
 ├── policy.py            # pure rule engine (DSL parse/validate/decide) — no I/O
 ├── message_extract.py   # text extraction + non-text counting
 ├── targets.py           # OpenAI-compatible payload/SSE client (single target)
@@ -178,7 +193,7 @@ routed-model/
 Package with the Dify plugin CLI:
 
 ```sh
-dify plugin package ./routed-model -o routed_model-0.2.8.difypkg
+dify plugin package ./routed-model -o routed_model-0.2.9.difypkg
 ```
 
 Runtime requires the plugin daemon to install `requirements.txt` at add-time
