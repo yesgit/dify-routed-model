@@ -15,7 +15,7 @@ import re
 # 应用开发者在提示词里放这个标记（常配合变量引用 {{#节点.输出#}} 由 Dify 渲染），
 # 捕获值作为独立行参与关键词匹配；转发上游前由 targets 剔除，模型看不到。
 # 仅喂关键词、不支持直接指定路由名——最终用户不能自行指定目标。
-MARKER_RE = re.compile(r"\[(?:routing|路由)\s*[:：]\s*([^\]\n]{1,64})\]", re.IGNORECASE)
+MARKER_RE = re.compile(r"\[(?:routing|路由)\s*[:：]\s*([^\]\n]{0,64})\]", re.IGNORECASE)
 
 
 def strip_markers(text: str) -> str:

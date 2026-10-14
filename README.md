@@ -117,6 +117,12 @@ and stripped before forwarding**:
 - Routing: the captured word is matched like any keyword (it joins the searchable
   text as its own segment; the full marker string can also be configured as a
   keyword in `pN_models`). Priority and first-hit rules are unchanged.
+- Multiple markers act like several keywords added at once — **rule declaration
+  order** still decides the winner, not the order the markers appear in the text
+  (`[routing:cheap] … [routing:legal]` routes to whichever rule is declared first).
+  Prefer exactly one marker per request (a classifier's output should be unique).
+  An empty marker (`[routing:]`, when the variable renders blank) is stripped and
+  matches nothing.
 - Stripping: markers are removed from every text part of the forwarded payload —
   a line containing only a marker is deleted, inline markers leave the rest of the
   line intact. The upstream model never sees them. The prompt stored/shown by
@@ -261,7 +267,7 @@ routed-model/
 Package with the Dify plugin CLI:
 
 ```sh
-dify plugin package ./routed-model -o routed_model-0.2.13.difypkg
+dify plugin package ./routed-model -o routed_model-0.2.14.difypkg
 ```
 
 Runtime requires the plugin daemon to install `requirements.txt` at add-time
